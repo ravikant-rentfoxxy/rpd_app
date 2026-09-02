@@ -171,21 +171,43 @@ class AppField extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: const TextStyle(fontSize: 11, color: AppColors.ink3)),
-          TextField(
-            controller: controller,
-            keyboardType: keyboard,
-            maxLength: maxLength,
-            onChanged: onChanged,
-            style: textStyle,
-            decoration: InputDecoration(
-              isDense: true,
-              border: InputBorder.none,
-              counterText: '',
-              hintText: hint,
-              hintStyle: const TextStyle(color: AppColors.ink4),
-              prefixText: prefix,
-              prefixStyle: textStyle,
-            ),
+          Row(
+            children: [
+              if (prefix != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.brandWash,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    prefix!.trim(),
+                    style: GoogleFonts.ibmPlexMono(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.brand,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  keyboardType: keyboard,
+                  maxLength: maxLength,
+                  onChanged: onChanged,
+                  style: textStyle,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    counterText: '',
+                    hintText: hint,
+                    hintStyle: const TextStyle(color: AppColors.ink4),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

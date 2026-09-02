@@ -12,38 +12,70 @@
 .swiftpm/
 migrate_working_dir/
 
-# IntelliJ related
+# IntelliJ / Android Studio
 *.iml
 *.ipr
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# VS Code / Cursor local settings
+.vscode/
+.cursor/
 
-# Flutter/Dart/Pub related
+# Flutter/Dart/Pub
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
+.flutter-plugins
 .flutter-plugins-dependencies
+.packages
 .pub-cache/
 .pub/
 /build/
 /coverage/
 
-# Symbolication related
+# Symbolication / obfuscation
 app.*.symbols
-
-# Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
+# Android build artifacts
 /android/app/debug
 /android/app/profile
 /android/app/release
+android/.gradle/
+android/local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
 
+# Signing — never push keys
+key.properties
+**/*.keystore
+**/*.jks
+**/*.p12
+**/*.pem
 
+# iOS / macOS local
+**/Pods/
+**/DerivedData/
+xcuserdata/
+**/.symlinks/
+*.ipa
+
+# Local env and secrets — do not push any of these
 .env
+.env.*
 .env.example
+*.pem
+google-services.json
+GoogleService-Info.plist
+
+# Local device / Hive data
+*.hive
+*.hive.lock
+
+# Generated platform folders
+linux/flutter/ephemeral/
+macos/Flutter/ephemeral/
+windows/flutter/ephemeral/
