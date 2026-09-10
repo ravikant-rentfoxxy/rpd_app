@@ -11,10 +11,18 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Your location is used only to suggest the nearest polling booths.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>The camera is used to record meeting evidence. Gallery photos cannot be used.</string>
+	<string>The camera is used for your membership photo, posts, and meeting evidence.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>The microphone is used when you record an audio or video post.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose a photo or video from your gallery for posts and your membership profile.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Save a compressed copy of your membership photo on this phone.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
 	<key>CFBundleExecutable</key>
@@ -24,7 +32,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>rpd_app</string>
+	<string>RPD</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -33,6 +41,14 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>https</string>
+		<string>http</string>
+		<string>youtube</string>
+		<string>vnd.youtube</string>
+		<string>fb</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

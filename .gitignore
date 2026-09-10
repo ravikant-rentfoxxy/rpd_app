@@ -75,6 +75,9 @@ GoogleService-Info.plist
 *.hive
 *.hive.lock
 
+# Generated docs
+docs/RPD_Backend_DB_Guide.pdf
+
 # Generated platform folders
 linux/flutter/ephemeral/
 macos/Flutter/ephemeral/

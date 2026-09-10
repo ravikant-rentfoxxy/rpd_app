@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 
@@ -9,31 +10,16 @@ class PartyMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = onBrand ? Colors.white.withValues(alpha: 0.16) : AppColors.brand;
-    final fg = onBrand ? Colors.white : AppColors.brandOn;
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(size * 0.24)),
-      child: CustomPaint(painter: _BarsPainter(fg)),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(size * 0.24),
+      child: Image.asset(
+        'assets/images/app_logo.png',
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+      ),
     );
   }
-}
-
-class _BarsPainter extends CustomPainter {
-  _BarsPainter(this.color);
-  final Color color;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = color;
-    final r = Radius.circular(size.width * 0.04);
-    canvas.drawRRect(RRect.fromLTRBR(size.width * 0.26, size.height * 0.55, size.width * 0.38, size.height * 0.74, r), p);
-    canvas.drawRRect(RRect.fromLTRBR(size.width * 0.44, size.height * 0.43, size.width * 0.56, size.height * 0.74, r), p);
-    canvas.drawRRect(RRect.fromLTRBR(size.width * 0.62, size.height * 0.28, size.width * 0.74, size.height * 0.74, r), p);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class AppCard extends StatelessWidget {
@@ -142,8 +128,16 @@ class AppField extends StatelessWidget {
     this.hint,
     this.mono = false,
     this.prefix,
+    this.icon,
+    this.suffix,
     this.maxLength,
+    this.digitsOnly = false,
+    this.formatters,
     this.onChanged,
+    this.onTap,
+    this.readOnly = false,
+    this.maxLines,
+    this.verifyStyle = false,
   });
   final String label;
   final TextEditingController controller;
@@ -151,63 +145,668 @@ class AppField extends StatelessWidget {
   final String? hint;
   final bool mono;
   final String? prefix;
+  final IconData? icon;
+  final Widget? suffix;
   final int? maxLength;
+  final bool digitsOnly;
+  final List<TextInputFormatter>? formatters;
   final ValueChanged<String>? onChanged;
+  final VoidCallback? onTap;
+  final bool readOnly;
+  final int? maxLines;
+  final bool verifyStyle;
 
   @override
   Widget build(BuildContext context) {
     final textStyle = mono
         ? GoogleFonts.ibmPlexMono(fontSize: 16, color: AppColors.ink)
-        : const TextStyle(fontSize: 16, color: AppColors.ink);
+        : TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: verifyStyle ? VerifyColors.ink : AppColors.ink);
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      margin: EdgeInsets.only(bottom: verifyStyle ? 8 : 12),
+      padding: EdgeInsets.fromLTRB(12, verifyStyle ? 6 : 10, 12, verifyStyle ? 6 : 10),
       decoration: BoxDecoration(
         color: AppColors.card,
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: AppColors.rule2),
+        borderRadius: BorderRadius.circular(verifyStyle ? 14 : 12),
+        border: Border.all(color: verifyStyle ? VerifyColors.line : AppColors.rule2, width: verifyStyle ? 1.5 : 1),
+        boxShadow: verifyStyle
+            ? const []
+            : const [
+                BoxShadow(color: Color(0x0A191424), blurRadius: 8, offset: Offset(0, 2)),
+              ],
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.ink3)),
-          Row(
-            children: [
-              if (prefix != null) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppColors.brandWash,
-                    borderRadius: BorderRadius.circular(6),
+          if (icon != null) ...[
+            _FieldIcon(icon!, verifyStyle: verifyStyle),
+            const SizedBox(width: 10),
+          ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  verifyStyle ? label.toUpperCase() : label,
+                  style: TextStyle(
+                    fontSize: verifyStyle ? 10 : 11,
+                    fontWeight: FontWeight.w700,
+                    color: verifyStyle ? VerifyColors.gray : AppColors.ink3,
                   ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    if (prefix != null) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.brandWash,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          prefix!.trim(),
+                          style: GoogleFonts.ibmPlexMono(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.brand,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        readOnly: readOnly,
+                        onTap: onTap,
+                        keyboardType: keyboard ??
+                            (maxLines != null && maxLines! > 1
+                                ? TextInputType.multiline
+                                : (digitsOnly ? TextInputType.number : null)),
+                        maxLines: maxLines ?? 1,
+                        minLines: maxLines != null && maxLines! > 1 ? 2 : 1,
+                        maxLength: maxLength,
+                        inputFormatters: [
+                          if (digitsOnly) FilteringTextInputFormatter.digitsOnly,
+                          if (maxLength != null) LengthLimitingTextInputFormatter(maxLength),
+                          ...?formatters,
+                        ],
+                        onChanged: onChanged,
+                        style: textStyle,
+                        decoration: InputDecoration(
+                          isDense: true,
+                          border: InputBorder.none,
+                          counterText: '',
+                          hintText: hint,
+                          hintStyle: TextStyle(color: verifyStyle ? const Color(0xFFB3ACB8) : AppColors.ink4, fontWeight: FontWeight.w400),
+                        ),
+                      ),
+                    ),
+                    if (suffix != null) ...[
+                      const SizedBox(width: 8),
+                      GestureDetector(onTap: onTap, child: suffix!),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FieldIcon extends StatelessWidget {
+  const _FieldIcon(this.icon, {this.verifyStyle = false});
+  final IconData icon;
+  final bool verifyStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: verifyStyle ? 26 : 32,
+      height: verifyStyle ? 26 : 32,
+      margin: EdgeInsets.only(top: verifyStyle ? 0 : 2),
+      decoration: BoxDecoration(
+        color: verifyStyle ? VerifyColors.pale : AppColors.brandWash,
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Icon(icon, size: verifyStyle ? 14 : 16, color: verifyStyle ? VerifyColors.purple : AppColors.brand),
+    );
+  }
+}
+
+class AppSelect<T> extends StatelessWidget {
+  const AppSelect({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+    this.hint,
+    this.icon,
+    this.enabled = true,
+    this.loading = false,
+    this.verifyStyle = false,
+  });
+
+  final String label;
+  final T? value;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?> onChanged;
+  final String? hint;
+  final IconData? icon;
+  final bool enabled;
+  final bool loading;
+  final bool verifyStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: EdgeInsets.only(bottom: verifyStyle ? 8 : 12),
+      padding: EdgeInsets.fromLTRB(12, verifyStyle ? 5 : 10, 12, verifyStyle ? 4 : 6),
+      decoration: BoxDecoration(
+        color: enabled ? AppColors.card : (verifyStyle ? const Color(0xFFF6F1F8) : AppColors.sunk),
+        borderRadius: BorderRadius.circular(verifyStyle ? 14 : 12),
+        border: Border.all(color: verifyStyle ? VerifyColors.line : AppColors.rule2, width: verifyStyle ? 1.5 : 1),
+        boxShadow: verifyStyle
+            ? const []
+            : const [
+                BoxShadow(color: Color(0x0A191424), blurRadius: 8, offset: Offset(0, 2)),
+              ],
+      ),
+      child: Row(
+        children: [
+          if (icon != null) ...[
+            _FieldIcon(icon!, verifyStyle: verifyStyle),
+            const SizedBox(width: 10),
+          ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  verifyStyle ? label.toUpperCase() : label,
+                  style: TextStyle(
+                    fontSize: verifyStyle ? 10 : 11,
+                    fontWeight: FontWeight.w700,
+                    color: verifyStyle ? VerifyColors.gray : AppColors.ink3,
+                  ),
+                ),
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<T>(
+                    value: value,
+                    isExpanded: true,
+                    isDense: true,
+                    hint: hint == null
+                        ? null
+                        : Text(hint!, style: TextStyle(color: verifyStyle ? const Color(0xFFB3ACB8) : AppColors.ink4, fontSize: 14)),
+                    icon: loading
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: verifyStyle ? VerifyColors.purple : AppColors.brand),
+                          )
+                        : Icon(Icons.keyboard_arrow_down_rounded, color: verifyStyle ? VerifyColors.gray : AppColors.ink3),
+                    items: items,
+                    onChanged: enabled && !loading ? onChanged : null,
+                    style: const TextStyle(fontSize: 16, color: AppColors.ink),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SearchOption {
+  const SearchOption({required this.id, required this.name});
+  final String id;
+  final String name;
+}
+
+class AppSearchSelect extends StatelessWidget {
+  const AppSearchSelect({
+    super.key,
+    required this.label,
+    required this.options,
+    required this.onChanged,
+    this.value,
+    this.hint,
+    this.searchHint,
+    this.emptyHint,
+    this.icon,
+    this.enabled = true,
+    this.loading = false,
+    this.verifyStyle = false,
+  });
+
+  final String label;
+  final List<SearchOption> options;
+  final ValueChanged<String?> onChanged;
+  final String? value;
+  final String? hint;
+  final String? searchHint;
+  final String? emptyHint;
+  final IconData? icon;
+  final bool enabled;
+  final bool loading;
+  final bool verifyStyle;
+
+  String? get _selectedName {
+    for (final option in options) {
+      if (option.id == value) return option.name;
+    }
+    return null;
+  }
+
+  Future<void> _open(BuildContext context) async {
+    if (!enabled || loading) return;
+    final picked = await showSearchSelectSheet(
+      context: context,
+      title: label,
+      searchHint: searchHint ?? hint ?? label,
+      emptyHint: emptyHint ?? 'No matches',
+      options: options,
+      selectedId: value,
+    );
+    if (picked != null) onChanged(picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = _selectedName;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: enabled && !loading ? () => _open(context) : null,
+        borderRadius: BorderRadius.circular(verifyStyle ? 14 : 12),
+        child: Container(
+          margin: EdgeInsets.only(bottom: verifyStyle ? 8 : 12),
+          padding: EdgeInsets.fromLTRB(12, verifyStyle ? 10 : 12, 12, verifyStyle ? 10 : 12),
+          decoration: BoxDecoration(
+            color: enabled ? AppColors.card : (verifyStyle ? const Color(0xFFF6F1F8) : AppColors.sunk),
+            borderRadius: BorderRadius.circular(verifyStyle ? 14 : 12),
+            border: Border.all(color: verifyStyle ? VerifyColors.line : AppColors.rule2, width: verifyStyle ? 1.5 : 1),
+          ),
+          child: Row(
+            children: [
+              if (icon != null) ...[
+                _FieldIcon(icon!, verifyStyle: verifyStyle),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      verifyStyle ? label.toUpperCase() : label,
+                      style: TextStyle(
+                        fontSize: verifyStyle ? 10 : 11,
+                        fontWeight: FontWeight.w700,
+                        color: verifyStyle ? VerifyColors.gray : AppColors.ink3,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      name ?? hint ?? '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: name == null ? (verifyStyle ? const Color(0xFFB3ACB8) : AppColors.ink4) : AppColors.ink,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (loading)
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: verifyStyle ? VerifyColors.purple : AppColors.brand),
+                )
+              else
+                Icon(Icons.keyboard_arrow_down_rounded, color: verifyStyle ? VerifyColors.gray : AppColors.ink3),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<String?> showSearchSelectSheet({
+  required BuildContext context,
+  required String title,
+  required String searchHint,
+  required List<SearchOption> options,
+  String? selectedId,
+  String emptyHint = 'No matches',
+}) {
+  return showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: AppColors.card,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (context) => _SearchSelectSheet(
+      title: title,
+      searchHint: searchHint,
+      emptyHint: emptyHint,
+      options: options,
+      selectedId: selectedId,
+    ),
+  );
+}
+
+class _SearchSelectSheet extends StatefulWidget {
+  const _SearchSelectSheet({
+    required this.title,
+    required this.searchHint,
+    required this.emptyHint,
+    required this.options,
+    this.selectedId,
+  });
+
+  final String title;
+  final String searchHint;
+  final String emptyHint;
+  final List<SearchOption> options;
+  final String? selectedId;
+
+  @override
+  State<_SearchSelectSheet> createState() => _SearchSelectSheetState();
+}
+
+class _SearchSelectSheetState extends State<_SearchSelectSheet> {
+  final query = TextEditingController();
+
+  @override
+  void dispose() {
+    query.dispose();
+    super.dispose();
+  }
+
+  List<SearchOption> get _filtered {
+    final q = query.text.trim().toLowerCase();
+    if (q.isEmpty) return widget.options;
+    return widget.options.where((option) => option.name.toLowerCase().contains(q)).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _filtered;
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottom),
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.72,
+        child: Column(
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(color: AppColors.rule2, borderRadius: BorderRadius.circular(2)),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: VerifyColors.ink),
+                    ),
+                  ),
+                  IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close_rounded)),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: TextField(
+                controller: query,
+                autofocus: true,
+                onChanged: (_) => setState(() {}),
+                cursorColor: VerifyColors.purple,
+                decoration: InputDecoration(
+                  hintText: widget.searchHint,
+                  hintStyle: const TextStyle(color: Color(0xFFB3ACB8)),
+                  prefixIcon: const Icon(Icons.search_rounded, color: VerifyColors.purple),
+                  filled: true,
+                  fillColor: VerifyColors.pale,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                ),
+              ),
+            ),
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Text(
+                        widget.emptyHint,
+                        style: const TextStyle(color: AppColors.ink3, fontWeight: FontWeight.w600),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1, color: VerifyColors.line),
+                      itemBuilder: (context, index) {
+                        final option = filtered[index];
+                        final selected = option.id == widget.selectedId;
+                        return ListTile(
+                          title: Text(
+                            option.name,
+                            style: TextStyle(
+                              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                              color: selected ? VerifyColors.purple : AppColors.ink,
+                            ),
+                          ),
+                          trailing: selected ? const Icon(Icons.check_rounded, color: VerifyColors.purple) : null,
+                          onTap: () => Navigator.pop(context, option.id),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AppChoiceField extends StatelessWidget {
+  const AppChoiceField({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    this.icon,
+  });
+
+  final String label;
+  final String value;
+  final List<(String value, String label)> options;
+  final ValueChanged<String> onChanged;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.rule2),
+        boxShadow: const [
+          BoxShadow(color: Color(0x0A191424), blurRadius: 8, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (icon != null) ...[
+            _FieldIcon(icon!),
+            const SizedBox(width: 10),
+          ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.ink3)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    for (var i = 0; i < options.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 8),
+                      Expanded(
+                        child: _ChoiceChip(
+                          label: options[i].$2,
+                          selected: options[i].$1 == value,
+                          onTap: () => onChanged(options[i].$1),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChoiceChip extends StatelessWidget {
+  const _ChoiceChip({required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.brand : AppColors.sunk,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: selected ? Colors.white : AppColors.ink2,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class OtpBoxes extends StatefulWidget {
+  const OtpBoxes({
+    super.key,
+    required this.controller,
+    this.length = 6,
+    this.onChanged,
+  });
+  final TextEditingController controller;
+  final int length;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  State<OtpBoxes> createState() => _OtpBoxesState();
+}
+
+class _OtpBoxesState extends State<OtpBoxes> {
+  late final FocusNode _focus;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus = FocusNode()..addListener(_rebuild);
+    widget.controller.addListener(_rebuild);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_rebuild);
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _rebuild() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    final value = widget.controller.text.replaceAll(RegExp(r'\D'), '');
+    final active = _focus.hasFocus ? value.length.clamp(0, widget.length - 1) : -1;
+    return GestureDetector(
+      onTap: () => _focus.requestFocus(),
+      child: Stack(
+        children: [
+          Row(
+            children: List.generate(widget.length, (index) {
+              final digit = index < value.length ? value[index] : '';
+              final isActive = index == active;
+              return Expanded(
+                child: Container(
+                  height: 52,
+                  margin: EdgeInsets.only(right: index == widget.length - 1 ? 0 : 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isActive ? const Color(0xFFEF8120) : Colors.white,
+                      width: isActive ? 2 : 1,
+                    ),
+                  ),
+                  alignment: Alignment.center,
                   child: Text(
-                    prefix!.trim(),
+                    digit,
                     style: GoogleFonts.ibmPlexMono(
-                      fontSize: 15,
+                      fontSize: 22,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.brand,
+                      color: AppColors.ink,
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-              ],
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  keyboardType: keyboard,
-                  maxLength: maxLength,
-                  onChanged: onChanged,
-                  style: textStyle,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    border: InputBorder.none,
-                    counterText: '',
-                    hintText: hint,
-                    hintStyle: const TextStyle(color: AppColors.ink4),
-                  ),
-                ),
+              );
+            }),
+          ),
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0,
+              child: TextField(
+                focusNode: _focus,
+                controller: widget.controller,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                maxLength: widget.length,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(widget.length),
+                ],
+                onChanged: widget.onChanged,
+                decoration: const InputDecoration(border: InputBorder.none, counterText: ''),
               ),
-            ],
+            ),
           ),
         ],
       ),
@@ -216,22 +815,35 @@ class AppField extends StatelessWidget {
 }
 
 class StepBar extends StatelessWidget {
-  const StepBar({super.key, required this.total, required this.current});
+  const StepBar({super.key, required this.total, required this.current, this.verification = false});
   final int total;
   final int current;
+  final bool verification;
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.only(bottom: verification ? 0 : 12),
       child: Row(
         children: List.generate(total, (i) {
+          final Color color;
+          if (verification) {
+            if (i < current - 1) {
+              color = VerifyColors.orange;
+            } else if (i == current - 1) {
+              color = VerifyColors.purple;
+            } else {
+              color = VerifyColors.line;
+            }
+          } else {
+            color = i < current ? AppColors.brandLight : AppColors.rule2;
+          }
           return Expanded(
             child: Container(
-              height: 3,
-              margin: EdgeInsets.only(right: i == total - 1 ? 0 : 3),
+              height: verification ? 4 : 3,
+              margin: EdgeInsets.only(right: i == total - 1 ? 0 : (verification ? 5 : 3)),
               decoration: BoxDecoration(
-                color: i < current ? AppColors.brandLight : AppColors.rule2,
-                borderRadius: BorderRadius.circular(2),
+                color: color,
+                borderRadius: BorderRadius.circular(3),
               ),
             ),
           );
@@ -319,18 +931,105 @@ class ScoreBar extends StatelessWidget {
 }
 
 class AvatarCircle extends StatelessWidget {
-  const AvatarCircle(this.initials, {super.key, this.color, this.bg});
+  const AvatarCircle(
+    this.initials, {
+    super.key,
+    this.color,
+    this.bg,
+    this.imageUrl,
+    this.radius = 16,
+    this.fallbackIcon = false,
+  });
   final String initials;
   final Color? color;
   final Color? bg;
+  final String? imageUrl;
+  final double radius;
+  final bool fallbackIcon;
+
   @override
   Widget build(BuildContext context) {
-    return CircleAvatar(
-      radius: 16,
-      backgroundColor: bg ?? AppColors.brandWash,
-      child: Text(
-        initials,
-        style: TextStyle(color: color ?? AppColors.brandLight, fontWeight: FontWeight.w700, fontSize: 11),
+    final fg = color ?? AppColors.brandLight;
+    final fallback = fallbackIcon
+        ? Icon(Icons.person, size: radius + 6, color: fg)
+        : Text(
+            initials,
+            style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: radius * 0.7),
+          );
+    final url = imageUrl?.trim();
+    return ClipOval(
+      child: ColoredBox(
+        color: bg ?? AppColors.brandWash,
+        child: SizedBox(
+          width: radius * 2,
+          height: radius * 2,
+          child: url == null || url.isEmpty
+              ? Center(child: fallback)
+              : Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Center(child: fallback),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class VerificationAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const VerificationAppBar({
+    super.key,
+    required this.title,
+    this.step,
+    this.actions,
+    this.onBack,
+  });
+
+  final String title;
+  final String? step;
+  final List<Widget>? actions;
+  final VoidCallback? onBack;
+
+  @override
+  Size get preferredSize => Size.fromHeight(step == null ? kToolbarHeight : 72);
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBar(
+      backgroundColor: VerifyColors.deep,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      toolbarHeight: step == null ? kToolbarHeight : 72,
+      iconTheme: const IconThemeData(color: Colors.white),
+      actionsIconTheme: const IconThemeData(color: Colors.white),
+      automaticallyImplyLeading: onBack == null,
+      leading: onBack == null
+          ? null
+          : IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              tooltip: 'Back',
+              onPressed: onBack,
+            ),
+      title: step == null
+          ? Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20))
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
+                const SizedBox(height: 2),
+                Text(
+                  step!,
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.65)),
+                ),
+              ],
+            ),
+      titleSpacing: 4,
+      actions: actions,
+      systemOverlayStyle: const SystemUiOverlayStyle(
+        statusBarColor: VerifyColors.deep,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
       ),
     );
   }

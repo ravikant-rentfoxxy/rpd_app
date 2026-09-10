@@ -17,6 +17,8 @@ class Booth {
     this.mandalName,
     this.assemblyName,
     this.districtName,
+    this.districtId,
+    this.stateId,
     this.distanceMetres,
   });
 
@@ -37,6 +39,8 @@ class Booth {
   final String? mandalName;
   final String? assemblyName;
   final String? districtName;
+  final String? districtId;
+  final String? stateId;
   final int? distanceMetres;
 
   Booth copyWith({int? distanceMetres}) => Booth(
@@ -57,6 +61,8 @@ class Booth {
         mandalName: mandalName,
         assemblyName: assemblyName,
         districtName: districtName,
+        districtId: districtId,
+        stateId: stateId,
         distanceMetres: distanceMetres ?? this.distanceMetres,
       );
 
@@ -78,6 +84,8 @@ class Booth {
         mandalName: json['mandalName'] as String?,
         assemblyName: json['assemblyName'] as String?,
         districtName: json['districtName'] as String?,
+        districtId: json['districtId'] as String?,
+        stateId: json['stateId'] as String?,
         distanceMetres: (json['distanceMetres'] as num?)?.toInt(),
       );
 
@@ -99,6 +107,8 @@ class Booth {
         'mandalName': mandalName,
         'assemblyName': assemblyName,
         'districtName': districtName,
+        'districtId': districtId,
+        'stateId': stateId,
         'distanceMetres': distanceMetres,
       };
 }

@@ -39,15 +39,41 @@ class ApiConfig {
     return url;
   }
 
-  /// Android emulator cannot reach the host via 127.0.0.1 — that is the emulator itself.
+  /// 127.0.0.1 is this device. A phone on Wi‑Fi must use the Mac LAN IP.
+  /// The Android emulator can use 10.0.2.2, but a real phone cannot.
+  /// Keeps path/query so media URLs are not collapsed to the origin.
   static String adjustForPlatform(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null || uri.host.isEmpty) return url;
     final loopback = uri.host == 'localhost' || uri.host == '127.0.0.1';
-    if (!kIsWeb && Platform.isAndroid && loopback) {
-      return _trimSlash(uri.replace(host: '10.0.2.2').toString());
+    final emulatorOnly = uri.host == '10.0.2.2';
+    final lan = dotenv.maybeGet('API_LAN_URL')?.trim();
+    final onPhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+    if (onPhone && lan != null && lan.isNotEmpty && (loopback || emulatorOnly)) {
+      return _withOrigin(uri, lan);
     }
-    return _trimSlash(url);
+    if (!kIsWeb && Platform.isAndroid && loopback) {
+      return _keepUrl(uri.replace(host: '10.0.2.2'));
+    }
+    return _keepUrl(uri);
+  }
+
+  static String _withOrigin(Uri from, String origin) {
+    final to = Uri.tryParse(origin);
+    if (to == null || to.host.isEmpty) return _keepUrl(from);
+    return _keepUrl(
+      from.replace(
+        scheme: to.scheme,
+        host: to.host,
+        port: to.hasPort ? to.port : (to.scheme == 'https' ? 443 : 80),
+      ),
+    );
+  }
+
+  static String _keepUrl(Uri uri) {
+    final text = uri.toString();
+    if (uri.path.isEmpty || uri.path == '/') return _trimSlash(text);
+    return text;
   }
 
   static String _trimSlash(String value) {

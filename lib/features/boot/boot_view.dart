@@ -4,6 +4,7 @@ import '../../core/constants/api.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/local/hive_service.dart';
+import '../session/session_controller.dart';
 
 class BootView extends StatefulWidget {
   const BootView({super.key});
@@ -19,21 +20,26 @@ class _BootViewState extends State<BootView> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _openStartRoute());
   }
 
-  void _openStartRoute() {
+  Future<void> _openStartRoute() async {
     final hive = Get.find<HiveService>();
     if (ApiConfig.resolved() == null) {
       Get.offAllNamed(Routes.apiSettings);
-      return;
-    }
-    if (hive.locale == null) {
-      Get.offAllNamed(Routes.language);
       return;
     }
     if (hive.accessToken == null || hive.accessToken!.isEmpty) {
       Get.offAllNamed(Routes.mobile);
       return;
     }
-    Get.offAllNamed(Routes.shell);
+    final session = Get.find<SessionController>();
+    final ok = await session.refreshMe();
+    if (!ok || hive.accessToken == null) {
+      if (Get.currentRoute != Routes.mobile) {
+        Get.offAllNamed(Routes.mobile);
+      }
+      return;
+    }
+    session.markActive();
+    session.openPostAuth();
   }
 
   @override

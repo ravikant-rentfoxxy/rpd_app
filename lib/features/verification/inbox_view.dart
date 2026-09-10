@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/remote/api_client.dart';
+import '../session/session_controller.dart';
 
 class VerificationInboxView extends StatelessWidget {
   const VerificationInboxView({super.key});
@@ -11,11 +12,16 @@ class VerificationInboxView extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = <dynamic>[].obs;
     final error = Rxn<String>();
-    Get.find<ApiClient>().get('/verification/inbox').then((r) {
-      items.assignAll((r['data']['items'] as List?) ?? []);
-    }).catchError((e) {
-      error.value = e.toString();
-    });
+    final session = Get.find<SessionController>();
+    if (!session.canOpenVerification) {
+      error.value = 'forbidden';
+    } else {
+      Get.find<ApiClient>().get('/verification/inbox').then((r) {
+        items.assignAll((r['data']['items'] as List?) ?? []);
+      }).catchError((e) {
+        error.value = e.toString();
+      });
+    }
     return Scaffold(
       appBar: AppBar(title: Text('to_check'.tr)),
       body: Obx(() {
@@ -28,7 +34,7 @@ class VerificationInboxView extends StatelessWidget {
                 children: [
                   const DisplayText('Only for office bearers', center: true),
                   const SizedBox(height: 8),
-                  const Text('Verification inbox opens for Mandal President and above.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.ink3)),
+                  const Text('Verification inbox opens for Mandal President, Assembly In-charge and above.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.ink3)),
                   const SizedBox(height: 16),
                   PrimaryButton('booth_health'.tr, ghost: true, onTap: Get.back),
                 ],

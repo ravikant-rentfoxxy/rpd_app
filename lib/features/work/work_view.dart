@@ -1,63 +1,72 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import '../../core/routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/language_dropdown.dart';
 import '../../core/widgets/ui.dart';
-import '../../data/remote/api_client.dart';
+import '../activity/add_sheet.dart';
+import '../session/session_controller.dart';
+import '../tasks/tasks_view.dart';
 
 class WorkView extends StatelessWidget {
   const WorkView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final data = Rxn<Map<String, dynamic>>();
-    Get.find<ApiClient>().get('/work/ledger').then((r) {
-      data.value = Map<String, dynamic>.from(r['data'] as Map);
-    }).ignore();
+    return const TasksView(asTab: true);
+  }
+}
+
+class ActivityHubView extends StatelessWidget {
+  const ActivityHubView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final session = Get.find<SessionController>();
+    if (session.needsVerification) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (session.needsVerification) session.openJoinVerification();
+      });
+      return Scaffold(
+        appBar: _hubAppBar(),
+        backgroundColor: HomeColors.paper,
+        body: const SizedBox.shrink(),
+      );
+    }
     return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('my_work'.tr),
-            const Text('August 2026', style: TextStyle(fontSize: 12, color: AppColors.ink3)),
-          ],
-        ),
+      backgroundColor: HomeColors.paper,
+      appBar: _hubAppBar(),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+        children: [
+          DisplayText('what_did_you'.tr, size: 22),
+          const SizedBox(height: 4),
+          Text('pick_one'.tr, style: const TextStyle(color: AppColors.ink3, fontSize: 13)),
+          const SizedBox(height: 16),
+          const ActivityActionGrid(aspectRatio: 2.2),
+        ],
       ),
-      body: Obx(() {
-        final d = data.value ?? {};
-        final entries = (d['entries'] as List?) ?? [];
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Center(child: DisplayText('${d['points'] ?? 410}', size: 42)),
-            Center(child: Text('points_month'.tr, style: const TextStyle(color: AppColors.ink3))),
-            const SizedBox(height: 16),
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  CardTitle('Rank ${d['mandalRank'] ?? 3} of ${d['mandalSize'] ?? 14}', sub: 'in Sihani mandal'),
-                  const ScoreBar(value: 0.79),
-                ],
-              ),
-            ),
-            AppCard(tone: CardTone.flat, child: CardTitle('Rank ${d['boothRank'] ?? 1} of ${d['boothSize'] ?? 6}', sub: 'in Booth B045')),
-            TextButton(onPressed: () => Get.toNamed(Routes.verification), child: Text('to_check'.tr)),
-            ...entries.map((e) {
-              final row = Map<String, dynamic>.from(e as Map);
-              final debit = row['direction'] == 'DEBIT';
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: AvatarCircle(debit ? '!' : '✓', bg: debit ? AppColors.badBg : AppColors.brandWash, color: debit ? AppColors.bad : AppColors.brandLight),
-                title: Text(row['note'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                trailing: MonoText('${debit ? '−' : ''}${row['points']}', size: 14, color: debit ? AppColors.bad : AppColors.ink),
-              );
-            }),
-            AppCard(tone: CardTone.flat, child: CardTitle('18 members still pending', sub: 'Points arrive when they are verified and complete 90 days.')),
-          ],
-        );
-      }),
     );
   }
+}
+
+PreferredSizeWidget _hubAppBar() {
+  return AppBar(
+    backgroundColor: HomeColors.navy,
+    foregroundColor: Colors.white,
+    elevation: 0,
+    scrolledUnderElevation: 0,
+    title: Text('record_activity'.tr),
+    actions: const [
+      Padding(
+        padding: EdgeInsets.only(right: 12),
+        child: Center(child: LanguageDropdown(onDark: true)),
+      ),
+    ],
+    systemOverlayStyle: const SystemUiOverlayStyle(
+      statusBarColor: HomeColors.navy,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
+    ),
+  );
 }

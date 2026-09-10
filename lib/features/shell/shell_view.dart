@@ -2,48 +2,67 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/theme/app_colors.dart';
 import '../home/home_view.dart';
+import '../session/session_controller.dart';
 import '../work/work_view.dart';
 import '../members/members_view.dart';
 import '../more/more_view.dart';
-import '../activity/add_sheet.dart';
-
-class ShellController extends GetxController {
-  final index = 0.obs;
-}
+import '../../core/routes/app_routes.dart';
 
 class ShellView extends StatelessWidget {
   const ShellView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final c = Get.put(ShellController());
+    final session = Get.find<SessionController>();
     final pages = const [HomeView(), WorkView(), SizedBox(), MembersView(), MoreView()];
     return Obx(
       () => Scaffold(
-        body: pages[c.index.value],
+        body: pages[session.shellIndex.value],
+        backgroundColor: HomeColors.paper,
         bottomNavigationBar: BottomAppBar(
-          color: AppColors.card,
-          elevation: 2,
-          notchMargin: 6,
-          shape: const CircularNotchedRectangle(),
-          child: SizedBox(
-            height: 60,
+          color: Colors.white,
+          elevation: 0,
+          padding: EdgeInsets.zero,
+          shadowColor: Colors.transparent,
+          surfaceTintColor: Colors.white,
+          child: Container(
+            height: 62,
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: HomeColors.border)),
+            ),
             child: Row(
               children: [
-                _Nav(0, Icons.home_outlined, 'home'.tr, c),
-                _Nav(1, Icons.insights_outlined, 'work'.tr, c),
-                const SizedBox(width: 48),
-                _Nav(3, Icons.groups_outlined, 'members'.tr, c),
-                _Nav(4, Icons.more_horiz, 'more'.tr, c),
+                _Nav(0, Icons.home_outlined, 'home'.tr, session),
+                _Nav(1, Icons.assignment_outlined, 'work'.tr, session),
+                const SizedBox(width: 56),
+                _Nav(3, Icons.groups_outlined, 'members'.tr, session),
+                _Nav(4, Icons.menu_rounded, 'more'.tr, session),
               ],
             ),
           ),
         ),
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-        floatingActionButton: FloatingActionButton(
-          backgroundColor: AppColors.brand,
-          onPressed: () => showAddSheet(context),
-          child: const Icon(Icons.add, color: Colors.white),
+        floatingActionButton: DecoratedBox(
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [BoxShadow(color: Color(0x73F07E1D), blurRadius: 20, offset: Offset(0, 10))],
+          ),
+          child: Material(
+            color: HomeColors.orange,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () {
+                if (!session.guardVerifiedAccess()) return;
+                Get.toNamed(Routes.createPost);
+              },
+              child: const SizedBox(
+                width: 52,
+                height: 52,
+                child: Icon(Icons.post_add_rounded, color: Colors.white, size: 24),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -51,28 +70,34 @@ class ShellView extends StatelessWidget {
 }
 
 class _Nav extends StatelessWidget {
-  const _Nav(this.i, this.icon, this.label, this.c);
+  const _Nav(this.i, this.icon, this.label, this.session);
   final int i;
   final IconData icon;
   final String label;
-  final ShellController c;
+  final SessionController session;
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: InkWell(
-        onTap: () => c.index.value = i,
+        onTap: () {
+          if (i == 1 && session.needsVerification) {
+            session.openJoinVerification();
+            return;
+          }
+          session.shellIndex.value = i;
+        },
         child: Obx(() {
-          final on = c.index.value == i;
+          final on = session.shellIndex.value == i;
           return Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 20, color: on ? AppColors.brandLight : AppColors.ink3),
+              Icon(icon, size: 19, color: on ? HomeColors.navActive : HomeColors.muted2),
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: on ? FontWeight.w700 : FontWeight.w400,
-                  color: on ? AppColors.brandLight : AppColors.ink3,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: on ? HomeColors.navActive : HomeColors.muted2,
                 ),
               ),
             ],

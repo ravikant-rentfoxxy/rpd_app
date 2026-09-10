@@ -1,20 +1,56 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:rpd_app/features/join/join_chrome.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/ui.dart';
-import '../../data/remote/api_client.dart';
+import 'task_api.dart';
 
-class TasksView extends StatelessWidget {
-  const TasksView({super.key});
+class TasksView extends StatefulWidget {
+  const TasksView({super.key, this.asTab = false});
+  final bool asTab;
+
+  @override
+  State<TasksView> createState() => _TasksViewState();
+}
+
+class _TasksViewState extends State<TasksView> {
+  final data = Rxn<Map<String, dynamic>>();
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => loading = true);
+    try {
+      data.value = await fetchTasks();
+    } catch (_) {
+      data.value ??= {};
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final data = Rxn<Map<String, dynamic>>();
-    Get.find<ApiClient>().get('/tasks').then((r) {
-      data.value = Map<String, dynamic>.from(r['data'] as Map);
-    }).ignore();
     return Scaffold(
-      appBar: AppBar(title: Text('my_tasks'.tr)),
+      backgroundColor: HomeColors.paper,
+      appBar: AppBar(
+        backgroundColor: HomeColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        automaticallyImplyLeading: !widget.asTab,
+        title: Text(widget.asTab ? 'work'.tr : 'my_tasks'.tr),
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: HomeColors.navy,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+        ),
+      ),
       body: Obx(() {
         final groups = Map<String, dynamic>.from(data.value?['groups'] as Map? ?? {});
         Widget group(String title, List items, {bool bad = false}) {
@@ -28,22 +64,51 @@ class TasksView extends StatelessWidget {
               ),
               ...items.map((e) {
                 final t = Map<String, dynamic>.from(e as Map);
+                final assigner = t['assigner'] is Map ? Map<String, dynamic>.from(t['assigner'] as Map) : <String, dynamic>{};
+                final sub = '${t['detail'] ?? t['description'] ?? assigner['fullName'] ?? t['assignerName'] ?? ''}'.trim();
                 return AppCard(
                   tone: bad ? CardTone.bad : CardTone.plain,
-                  child: CardTitle(t['title'] as String? ?? '', sub: t['detail'] as String? ?? t['assigner']?['fullName'] as String?),
+                  child: CardTitle(t['title'] as String? ?? '', sub: sub.isEmpty ? null : sub),
                 );
               }),
             ],
           );
         }
 
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            group('overdue'.tr, (groups['overdue'] as List?) ?? [], bad: true),
-            group('due_today'.tr, (groups['today'] as List?) ?? []),
-            group('this_week'.tr, (groups['thisWeek'] as List?) ?? []),
-          ],
+        if (loading && data.value == null) {
+          return const Center(child: CircularProgressIndicator(color: HomeColors.orange));
+        }
+
+        final region = (groups['region'] as List?) ?? [];
+        final overdue = (groups['overdue'] as List?) ?? [];
+        final today = (groups['today'] as List?) ?? [];
+        final week = (groups['thisWeek'] as List?) ?? [];
+        final later = (groups['later'] as List?) ?? [];
+        final empty = region.isEmpty && overdue.isEmpty && today.isEmpty && week.isEmpty && later.isEmpty;
+
+        return RefreshIndicator(
+          color: HomeColors.orange,
+          onRefresh: _load,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              if (empty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 48),
+                  child: Text(
+                    'no_tasks'.trFallback('No tasks yet'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: HomeColors.muted),
+                  ),
+                )
+              else ...[
+                group('region_tasks'.trFallback('Region tasks'), region),
+                group('overdue'.tr, overdue, bad: true),
+                group('due_today'.tr, today),
+                group('this_week'.tr, week),
+              ],
+            ],
+          ),
         );
       }),
     );

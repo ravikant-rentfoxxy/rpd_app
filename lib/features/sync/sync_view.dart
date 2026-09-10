@@ -38,7 +38,8 @@ class SyncView extends StatelessWidget {
                 subtitle: Text(e['size'] as String? ?? e['createdAt'] as String? ?? ''),
               )),
           AppCard(tone: CardTone.ok, child: CardTitle('nothing_lost'.tr, sub: 'These stay on your phone until they upload. You can close the app.')),
-          PrimaryButton('try_upload'.tr, ghost: true, onTap: () {
+          PrimaryButton('try_upload'.tr, ghost: true, onTap: () async {
+            await Get.find<SessionController>().syncPendingPosts();
             items.assignAll(hive.pendingSync());
             Get.find<SessionController>().syncCount.value = items.length;
           }),

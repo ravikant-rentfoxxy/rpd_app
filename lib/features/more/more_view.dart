@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:rpd_app/features/join/join_chrome.dart';
 import '../../core/routes/app_routes.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/widgets/language_dropdown.dart';
 import '../../core/widgets/ui.dart';
+import '../card/membership_card_view.dart';
+import '../session/logout_dialog.dart';
 import '../session/session_controller.dart';
 
 class MoreView extends StatelessWidget {
@@ -10,21 +16,60 @@ class MoreView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('more'.tr)),
-      body: ListView(
+      appBar: AppBar(
+        backgroundColor: HomeColors.navy,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: Text('more'.tr),
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: HomeColors.navy,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+        ),
+      ),
+      body: Obx(() {
+        final session = Get.find<SessionController>();
+        session.profile.value;
+        return ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          AppCard(onTap: () => Get.toNamed(Routes.card), child: CardTitle('membership_card'.tr)),
+          if (session.canOpenVerification)
+            AppCard(
+              onTap: () => Get.toNamed(Routes.verification),
+              child: CardTitle('verification_inbox'.trFallback('Verification inbox')),
+            ),
+          AppCard(
+            onTap: () => Get.toNamed(Routes.posts),
+            child: CardTitle('region_posts'.tr, sub: 'region_posts_sub'.tr),
+          ),
+          AppCard(
+            onTap: showMembershipCardOverlay,
+            child: CardTitle('membership_card'.tr),
+          ),
           AppCard(onTap: () => Get.toNamed(Routes.boothHealth), child: CardTitle('booth_health'.tr)),
-          AppCard(onTap: () => Get.toNamed(Routes.tasks), child: CardTitle('my_tasks'.tr)),
-          AppCard(onTap: () => Get.toNamed(Routes.sync), child: CardTitle('sync_queue'.tr)),
+          if (session.canCreateOrgEvents)
+            AppCard(
+              onTap: () => Get.toNamed(Routes.createTask),
+              child: CardTitle('create_task'.trFallback('Create task'), sub: 'create_task_sub'.trFallback('Assign work to members in your region')),
+            ),
+          AppCard(
+            onTap: () => Get.toNamed(Routes.activityHub),
+            child: CardTitle('record_activity'.tr, sub: 'record_activity_sub'.tr),
+          ),
           AppCard(onTap: () => Get.toNamed(Routes.meeting), child: CardTitle('booth_meeting'.tr)),
-          AppCard(onTap: () => Get.offAllNamed(Routes.language), child: CardTitle('language'.tr)),
-          AppCard(onTap: () => Get.toNamed(Routes.apiSettings), child: CardTitle('api_url'.tr)),
-          AppCard(onTap: () => Get.toNamed(Routes.errorLog), child: CardTitle('error_log'.tr)),
-          PrimaryButton('sign_out'.tr, ghost: true, onTap: Get.find<SessionController>().signOut),
+          AppCard(
+            child: Row(
+              children: [
+                Expanded(child: CardTitle('language'.tr)),
+                const LanguageDropdown(),
+              ],
+            ),
+          ),
+          PrimaryButton('sign_out'.tr, ghost: true, onTap: showLogoutDialog),
         ],
-      ),
+      );
+      }),
     );
   }
 }
