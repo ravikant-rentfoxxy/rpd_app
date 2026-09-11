@@ -30,8 +30,8 @@ List<ActivityAction> activityActions() => [
         sub: 'बैठक',
         type: 'MEETING',
         icon: Icons.groups_outlined,
-        color: AppColors.brand,
-        wash: AppColors.brandWash,
+        color: HomeColors.navy,
+        wash: HomeColors.tealWash,
       ),
       ActivityAction(
         title: 'griha'.tr,
@@ -39,23 +39,23 @@ List<ActivityAction> activityActions() => [
         type: 'GRIHA_SAMPARK',
         icon: Icons.home_outlined,
         color: HomeColors.orange,
-        wash: HomeColors.taskBg,
+        wash: HomeColors.peach,
       ),
       ActivityAction(
         title: 'programme'.tr,
         sub: 'कार्यक्रम',
         type: 'PUBLIC_PROGRAMME',
         icon: Icons.campaign_outlined,
-        color: const Color(0xFF2F6FED),
-        wash: const Color(0xFFE8EFFF),
+        color: HomeColors.ink,
+        wash: AppColors.sunk,
       ),
       ActivityAction(
         title: 'training'.tr,
         sub: 'प्रशिक्षण',
         type: 'TRAINING',
         icon: Icons.menu_book_outlined,
-        color: AppColors.warn,
-        wash: AppColors.warnBg,
+        color: HomeColors.orangeDark,
+        wash: HomeColors.peach2,
       ),
     ];
 
@@ -144,7 +144,7 @@ class AddSheet extends StatelessWidget {
               },
             ),
             const SizedBox(height: 12),
-            const ActivityActionGrid(popSheet: true),
+            const ActivityActionGrid(popSheet: true, aspectRatio: 1.15),
           ],
         ),
       ),
@@ -161,47 +161,33 @@ class _ActivityTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: action.wash,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(24),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: action.color.withValues(alpha: 0.18)),
-          ),
-          child: Row(
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(action.icon, color: action.color, size: 16),
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                child: Icon(action.icon, color: action.color, size: 20),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      action.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.ink),
-                    ),
-                    Text(
-                      action.sub,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 10, color: action.color, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
+              const Spacer(),
+              Text(
+                action.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.ink),
+              ),
+              Text(
+                action.sub,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: action.color, fontWeight: FontWeight.w600),
               ),
             ],
           ),

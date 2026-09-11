@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:rpd_app/features/join/join_chrome.dart';
 import '../../core/routes/app_routes.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/widgets/language_dropdown.dart';
 import '../../core/widgets/ui.dart';
 import '../card/membership_card_view.dart';
@@ -16,18 +14,7 @@ class MoreView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: HomeColors.navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: Text('more'.tr),
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: HomeColors.navy,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-        ),
-      ),
+      appBar: OrganicAppBar(title: 'more'.tr),
       body: Obx(() {
         final session = Get.find<SessionController>();
         session.profile.value;
@@ -53,6 +40,13 @@ class MoreView extends StatelessWidget {
               onTap: () => Get.toNamed(Routes.createTask),
               child: CardTitle('create_task'.trFallback('Create task'), sub: 'create_task_sub'.trFallback('Assign work to members in your region')),
             ),
+          AppCard(
+            onTap: () => Get.toNamed(Routes.activityEvents),
+            child: CardTitle(
+              'activity_events'.trFallback('Activity events'),
+              sub: 'activity_events_sub'.trFallback('Answer live activity events'),
+            ),
+          ),
           AppCard(
             onTap: () => Get.toNamed(Routes.activityHub),
             child: CardTitle('record_activity'.tr, sub: 'record_activity_sub'.tr),

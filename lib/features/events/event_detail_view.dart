@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/api_error.dart';
 import '../../core/utils/local_image.dart';
+import '../../core/widgets/ui.dart';
 import '../../data/models/home_feed.dart';
 import '../home/home_widgets.dart';
 import '../join/join_chrome.dart';
@@ -84,16 +84,8 @@ class _EventDetailViewState extends State<EventDetailView> {
       final item = data;
       return Scaffold(
         backgroundColor: const Color(0xFFFAF6F0),
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF1B1340),
-          foregroundColor: Colors.white,
-          elevation: 0,
-          title: Text(item.title.isEmpty ? 'event_detail'.trFallback('Event') : item.title),
-          systemOverlayStyle: const SystemUiOverlayStyle(
-            statusBarColor: Color(0xFF1B1340),
-            statusBarIconBrightness: Brightness.light,
-            statusBarBrightness: Brightness.dark,
-          ),
+        appBar: OrganicAppBar(
+          title: item.title.isEmpty ? 'event_detail'.trFallback('Event') : item.title,
         ),
         bottomNavigationBar: SafeArea(
           child: Padding(

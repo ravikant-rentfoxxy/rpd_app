@@ -4,17 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
-import '../constants/api.dart';
+import 'media_url.dart';
+
+export 'media_url.dart' show isHttpUrl, isHlsUrl, resolveMediaUrl, resolveStorageUrl, resolveVideoHlsUrl, resolveStreamThumbnailUrl, resolveStreamEmbedUrl, streamVideoId, postImageUrl, postAudioUrl, postVideoUrl, postVideoId, postStreamEmbedUrl, isVideoPost;
 
 String? localPhotoPath(Object? raw) {
   final value = raw?.toString().trim() ?? '';
   if (value.isEmpty) return null;
   return value.startsWith('file://') ? value.replaceFirst('file://', '') : value;
-}
-
-bool isHttpUrl(String? value) {
-  final text = value?.trim() ?? '';
-  return text.startsWith('http://') || text.startsWith('https://');
 }
 
 bool isLocalPhotoPath(String? value) {
@@ -27,27 +24,15 @@ bool isLocalPhotoPath(String? value) {
 String? memberPhotoRef(Map<String, dynamic>? member) {
   if (member == null) return null;
   final url = member['photoUrl']?.toString().trim();
-  if (url != null && url.isNotEmpty) return url;
+  if (url != null && url.isNotEmpty) return resolveStorageUrl(url) ?? url;
   final path = member['photoPath']?.toString().trim();
   if (path != null && path.isNotEmpty) return path;
   return null;
 }
 
-String? resolveMediaUrl(Object? raw) {
-  final value = raw?.toString().trim() ?? '';
-  if (value.isEmpty) return null;
-  if (isHttpUrl(value)) return ApiConfig.adjustForPlatform(value);
-  if (value.startsWith('members/') || value.startsWith('posts/') || value.startsWith('events/')) {
-    final base = ApiConfig.resolved();
-    if (base == null) return null;
-    return ApiConfig.adjustForPlatform('$base${ApiConfig.prefix}/media/$value');
-  }
-  return null;
-}
-
 ImageProvider? localOrNetworkImage(Object? raw) {
-  final media = resolveMediaUrl(raw);
-  if (media != null) return NetworkImage(media);
+  final media = resolveStorageUrl(raw) ?? (isHlsUrl(raw?.toString()) ? null : resolveMediaUrl(raw));
+  if (media != null && !isHlsUrl(media)) return NetworkImage(media);
   final path = localPhotoPath(raw);
   if (path != null && File(path).existsSync()) return FileImage(File(path));
   return null;

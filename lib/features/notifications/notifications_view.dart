@@ -49,8 +49,8 @@ class NotificationsView extends StatelessWidget {
     ].obs;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('notifications'.tr),
+      appBar: OrganicAppBar(
+        title: 'notifications'.tr,
         actions: [
           TextButton(
             onPressed: () {
@@ -61,7 +61,10 @@ class NotificationsView extends StatelessWidget {
                     unread: false,
                   )));
             },
-            child: Text('mark_all_read'.tr),
+            child: Text(
+              'mark_all_read'.tr,
+              style: const TextStyle(color: HomeColors.orangeSoft, fontWeight: FontWeight.w700, fontSize: 12.5),
+            ),
           ),
         ],
       ),
@@ -76,7 +79,7 @@ class NotificationsView extends StatelessWidget {
           itemBuilder: (context, index) {
             final n = items[index];
             return AppCard(
-              tone: n.unread ? CardTone.brand : CardTone.plain,
+              tone: n.unread ? CardTone.ok : CardTone.plain,
               onTap: () {
                 items[index] = _DummyNotice(
                   title: n.title,

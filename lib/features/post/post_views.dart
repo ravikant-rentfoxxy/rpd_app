@@ -20,6 +20,7 @@ import '../../data/local/hive_service.dart';
 import '../join/join_chrome.dart';
 import '../session/session_controller.dart';
 import 'post_api.dart';
+import 'post_done_celebration.dart';
 import 'post_issue_sheet.dart';
 import 'post_media.dart';
 
@@ -53,7 +54,6 @@ class _PostsListViewState extends State<PostsListView> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     final session = Get.find<SessionController>();
-    final hive = Get.find<HiveService>();
     return Scaffold(
       backgroundColor: HomeColors.paper,
       appBar: AppBar(
@@ -65,6 +65,9 @@ class _PostsListViewState extends State<PostsListView> with SingleTickerProvider
           statusBarColor: HomeColors.navy,
           statusBarIconBrightness: Brightness.light,
           statusBarBrightness: Brightness.dark,
+        ),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
         ),
         bottom: TabBar(
           controller: _tabs,
@@ -86,8 +89,8 @@ class _PostsListViewState extends State<PostsListView> with SingleTickerProvider
         return TabBarView(
           controller: _tabs,
           children: [
-            _PostsPane(posts: hive.myPosts()),
-            _PostsPane(posts: hive.otherPosts()),
+            _PostsPane(posts: session.myPosts()),
+            _PostsPane(posts: session.otherPosts()),
           ],
         );
       }),
@@ -381,8 +384,8 @@ class _CreatePostViewState extends State<CreatePostView> {
     }
     final connected = await hasNetwork();
     online.value = connected;
-    if (hasMedia && kind != _PostMediaKind.image && !connected) {
-      _showOfflineMessage();
+    if (!connected && (kind != _PostMediaKind.image || !hasMedia)) {
+      await _showOfflineMessage();
       return;
     }
     submitting.value = true;
@@ -449,30 +452,22 @@ class _CreatePostViewState extends State<CreatePostView> {
           thumbnailPath: thumbnail,
         );
         await persistUploadedPost(uploaded, localPath: localPath, thumbnailPath: thumbnail);
+        session.upsertRegionPost(uploaded);
       } else {
-        await hive.savePost({...row, 'pending': true});
+        await hive.savePost({...row, 'pending': true, 'mediaType': 'image'});
         await hive.enqueueSync({...row, 'type': 'REGION_POST', 'title': 'post_saved_offline'.tr});
         session.syncCount.value = hive.pendingSync().length;
       }
       session.postsTick.value++;
-      _openRegionPosts();
       unawaited(session.refreshRegionPosts());
-      Future<void>.delayed(const Duration(milliseconds: 250), () {
-        Get.snackbar(
-          connected ? 'post_saved'.tr : 'post_saved_offline'.tr,
-          connected ? 'post_saved_sub'.tr : 'post_saved_offline_sub'.tr,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.ok,
-          colorText: Colors.white,
-          margin: const EdgeInsets.all(16),
-          borderRadius: 10,
-        );
-      });
+      submitting.value = false;
+      if (!mounted) return;
+      await showPostDoneCelebration(context, offline: !connected);
+      if (mounted) _openRegionPosts();
     } catch (e, stack) {
       AppLog.error('Post save failed', error: e, stack: stack, tag: 'POST');
-      Get.snackbar('Error', apiErrorMessage(e));
-    } finally {
       submitting.value = false;
+      Get.snackbar('Error', apiErrorMessage(e));
     }
   }
 
@@ -497,27 +492,24 @@ class _CreatePostViewState extends State<CreatePostView> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
+        if (didPop || submitting.value) return;
         _openRegionPosts();
       },
       child: Scaffold(
       backgroundColor: cream,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1325),
-        foregroundColor: Colors.white,
-        elevation: 0,
+      appBar: OrganicAppBar(
+        title: 'create_post'.trFallback('Create post'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: _openRegionPosts,
-        ),
-        title: Text('create_post'.trFallback('Create post')),
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: Color(0xFF1A1325),
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
+          onPressed: () {
+            if (submitting.value) return;
+            _openRegionPosts();
+          },
         ),
       ),
-      body: ListView(
+      body: Stack(
+        children: [
+          ListView(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         children: [
@@ -586,11 +578,18 @@ class _CreatePostViewState extends State<CreatePostView> {
           const SizedBox(height: 28),
           Obx(
             () => _PostUpdateButton(
-              label: submitting.value ? '…' : 'publish_post'.trFallback('Post update'),
+              label: submitting.value ? 'posting'.trFallback('Posting…') : 'publish_post'.trFallback('Post update'),
               enabled: !submitting.value,
+              loading: submitting.value,
               onTap: submit,
             ),
           ),
+        ],
+      ),
+          Obx(() {
+            if (!submitting.value) return const SizedBox.shrink();
+            return const Positioned.fill(child: _PostSubmittingOverlay());
+          }),
         ],
       ),
       ),
@@ -945,14 +944,18 @@ class RegionPostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final type = '${post['mediaType'] ?? 'image'}'.toLowerCase();
-    final raw = post['mediaUrl'] ?? post['mediaPath'] ?? post['photoPath'];
-    final path = resolveMediaUrl(raw) ?? localPhotoPath(raw);
-    final thumb = post['thumbnailUrl'] ?? post['thumbnailPath'] ?? post['thumbnailKey'];
+    final type = isVideoPost(post) ? 'video' : '${post['mediaType'] ?? 'image'}'.toLowerCase();
+    final raw = post['mediaUrl'] ?? post['mediaPath'] ?? post['photoPath'] ?? post['mediaKey'];
+    final path = switch (type) {
+      'video' => postVideoUrl(post) ?? postImageUrl(post) ?? localPhotoPath(raw),
+      'audio' => postAudioUrl(post) ?? localPhotoPath(raw),
+      _ => postImageUrl(post) ?? localPhotoPath(raw),
+    };
+    final thumb = post['thumbnailUrl'] ?? post['thumbnailPath'] ?? post['thumbnailKey'] ?? resolveStreamThumbnailUrl(raw) ?? postImageUrl(post);
     final description = '${post['description'] ?? ''}';
-    final author = '${post['authorName'] ?? ''}'.trim();
     final issue = issueLabelOf(post);
     final height = compact ? 110.0 : 148.0;
+    final hasMedia = type == 'video' || (path != null && path.isNotEmpty);
     return Material(
       color: Colors.white,
       shape: RoundedRectangleBorder(
@@ -965,7 +968,7 @@ class RegionPostCard extends StatelessWidget {
         child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (path != null && path.isNotEmpty)
+          if (hasMedia)
             _PostMediaTile(type: type, path: path, thumbnail: thumb, height: height),
           ColoredBox(
             color: Colors.white,
@@ -988,7 +991,7 @@ class RegionPostCard extends StatelessWidget {
                     const SizedBox(height: 8),
                   ],
                   Text(
-                    [author, lastActiveWhen(post['createdAt'])].where((e) => e.trim().isNotEmpty).join(' · '),
+                    lastActiveWhen(post['createdAt']),
                     style: const TextStyle(fontSize: 12, color: HomeColors.muted),
                   ),
                 ],
@@ -1216,15 +1219,16 @@ class _TextAction extends StatelessWidget {
 }
 
 class _PostUpdateButton extends StatelessWidget {
-  const _PostUpdateButton({required this.label, required this.enabled, required this.onTap});
+  const _PostUpdateButton({required this.label, required this.enabled, required this.onTap, this.loading = false});
   final String label;
   final bool enabled;
+  final bool loading;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: enabled ? HomeColors.orange : const Color(0xFFE4DCD0),
+      color: enabled || loading ? HomeColors.orange : const Color(0xFFE4DCD0),
       borderRadius: BorderRadius.circular(28),
       child: InkWell(
         onTap: enabled ? onTap : null,
@@ -1232,7 +1236,57 @@ class _PostUpdateButton extends StatelessWidget {
         child: SizedBox(
           height: 54,
           child: Center(
-            child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+            child: loading
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+                  )
+                : Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PostSubmittingOverlay extends StatelessWidget {
+  const _PostSubmittingOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: const Color(0x99000000),
+      child: Center(
+        child: Container(
+          width: 220,
+          padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 24, offset: Offset(0, 10))],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 42,
+                height: 42,
+                child: CircularProgressIndicator(strokeWidth: 3, color: HomeColors.orange),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'posting'.trFallback('Posting…'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: HomeColors.ink),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'posting_sub'.trFallback('Please wait while we send your update.'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13, color: HomeColors.muted, height: 1.35),
+              ),
+            ],
           ),
         ),
       ),
@@ -1249,13 +1303,13 @@ class _PostMediaTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (type == 'video') {
+      return VideoThumbTile(videoPath: path ?? '', thumbnail: thumbnail, height: height);
+    }
     if (path == null || path!.isEmpty) {
       return ColoredBox(color: HomeColors.navy, child: SizedBox(height: height, width: double.infinity));
     }
     if (type == 'audio') return AudioListenBar(path: path!, compact: height < 150);
-    if (type == 'video') {
-      return VideoThumbTile(videoPath: path!, thumbnail: thumbnail, height: height);
-    }
     return SizedBox(
       height: height,
       width: double.infinity,

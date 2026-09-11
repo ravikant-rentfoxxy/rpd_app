@@ -37,26 +37,23 @@ class AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (Color bg, Color border) = switch (tone) {
-      CardTone.plain => (AppColors.card, AppColors.rule),
-      CardTone.flat => (AppColors.sunk, Colors.transparent),
-      CardTone.brand => (AppColors.brandWash, AppColors.brandLight),
-      CardTone.ok => (AppColors.okBg, AppColors.ok),
-      CardTone.warn => (AppColors.warnBg, AppColors.warn),
-      CardTone.bad => (AppColors.badBg, AppColors.bad),
+    final Color bg = switch (tone) {
+      CardTone.plain => AppColors.card,
+      CardTone.flat => AppColors.sunk,
+      CardTone.brand => AppColors.brandWash,
+      CardTone.ok => AppColors.okBg,
+      CardTone.warn => AppColors.warnBg,
+      CardTone.bad => AppColors.badBg,
     };
     return Padding(
-      padding: margin ?? const EdgeInsets.only(bottom: 12),
+      padding: margin ?? const EdgeInsets.only(bottom: 10),
       child: Material(
         color: bg,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSpace.cardRadius),
-          side: BorderSide(color: border),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpace.cardRadius)),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(AppSpace.cardRadius),
-          child: Padding(padding: const EdgeInsets.fromLTRB(11, 10, 11, 10), child: child),
+          child: Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 14), child: child),
         ),
       ),
     );
@@ -77,7 +74,7 @@ class CardTitle extends StatelessWidget {
         Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, height: 1.35)),
         if (sub != null) ...[
           const SizedBox(height: 2),
-          Text(sub!, style: GoogleFonts.ibmPlexMono(fontSize: 11, color: AppColors.ink3, height: 1.5)),
+          Text(sub!, style: const TextStyle(fontSize: 12, color: AppColors.ink3, height: 1.4)),
         ],
       ],
     );
@@ -95,23 +92,23 @@ class PrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
-      height: 52,
+      height: 50,
       child: ghost
           ? OutlinedButton(
               onPressed: enabled ? onTap : null,
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.ink2,
                 side: const BorderSide(color: AppColors.rule2),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpace.controlRadius)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
               ),
-              child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+              child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
             )
           : FilledButton(
               onPressed: enabled ? onTap : null,
               style: FilledButton.styleFrom(
-                backgroundColor: enabled ? AppColors.brand : AppColors.rule2,
-                foregroundColor: enabled ? AppColors.brandOn : AppColors.ink4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpace.controlRadius)),
+                backgroundColor: enabled ? HomeColors.orange : AppColors.rule2,
+                foregroundColor: enabled ? Colors.white : AppColors.ink4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
               ),
               child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
             ),
@@ -208,7 +205,7 @@ class AppField extends StatelessWidget {
                           style: GoogleFonts.ibmPlexMono(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.brand,
+                            color: HomeColors.orange,
                           ),
                         ),
                       ),
@@ -771,7 +768,7 @@ class _OtpBoxesState extends State<OtpBoxes> {
                   margin: EdgeInsets.only(right: index == widget.length - 1 ? 0 : 8),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(18),
                     border: Border.all(
                       color: isActive ? const Color(0xFFEF8120) : Colors.white,
                       width: isActive ? 2 : 1,
@@ -893,6 +890,52 @@ class DisplayText extends StatelessWidget {
         letterSpacing: -0.6,
         color: color ?? AppColors.ink,
         height: 1.18,
+      ),
+    );
+  }
+}
+
+class OrganicAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const OrganicAppBar({
+    super.key,
+    required this.title,
+    this.actions,
+    this.leading,
+    this.automaticallyImplyLeading = true,
+  });
+
+  final String title;
+  final List<Widget>? actions;
+  final Widget? leading;
+  final bool automaticallyImplyLeading;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight + 8);
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: HomeColors.navy,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+      ),
+      child: AppBar(
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        automaticallyImplyLeading: automaticallyImplyLeading,
+        leading: leading,
+        title: Text(
+          title,
+          style: GoogleFonts.bricolageGrotesque(fontSize: 24, fontWeight: FontWeight.w600, color: Colors.white),
+        ),
+        actions: actions,
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: HomeColors.navy,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+        ),
       ),
     );
   }

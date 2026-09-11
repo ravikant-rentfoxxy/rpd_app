@@ -1,2 +1,6 @@
 API_BASE_URL=http://127.0.0.1:4000
 API_LAN_URL=http://192.168.1.6:4000
+BUNNY_STORAGE_CDN=https://rentfoxxy-media.b-cdn.net
+BUNNY_STREAM_CDN=https://vz-8625e1d3-3b3.b-cdn.net
+BUNNY_STREAM_LIBRARY_ID=750289
+BUNNY_STREAM_EMBED=https://iframe.mediadelivery.net

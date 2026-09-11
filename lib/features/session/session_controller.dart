@@ -6,12 +6,14 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile;
 import '../../core/constants/org_hierarchy.dart';
+import '../../core/constants/post_issues.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/utils/app_log.dart';
 import '../../core/utils/network.dart';
 import '../../data/local/hive_service.dart';
 import '../../data/models/booth.dart';
 import '../../data/remote/api_client.dart';
+import '../activity_event/activity_event_dialog.dart';
 import '../engagement/engagement_dialog.dart';
 import '../events/event_api.dart';
 import '../post/post_api.dart';
@@ -31,11 +33,13 @@ class SessionController extends GetxController {
   final online = true.obs;
   final recruitsTick = 0.obs;
   final postsTick = 0.obs;
+  final regionPosts = <Map<String, dynamic>>[].obs;
   final allUpcomingEvents = <Map<String, dynamic>>[].obs;
   final shellIndex = 0.obs;
   final localeCode = 'en'.obs;
   StreamSubscription<bool>? _networkSub;
   bool _engagementShown = false;
+  bool _activityEventShown = false;
 
   Map<String, dynamic>? get member => profile.value ?? hive.profile;
 
@@ -57,6 +61,7 @@ class SessionController extends GetxController {
     localeCode.value = hive.locale ?? 'en';
     api.onSessionExpired = signOut;
     _networkSub = watchNetwork().listen((up) => online.value = up);
+    unawaited(hive.keepPendingImagePostsOnly());
   }
 
   @override
@@ -101,7 +106,10 @@ class SessionController extends GetxController {
     return joinRoute;
   }
 
-  void openPostAuth() => Get.offAllNamed(postAuthRoute);
+  void openPostAuth() {
+    shellIndex.value = 0;
+    Get.offAllNamed(postAuthRoute);
+  }
 
   void openJoinVerification() => Get.toNamed(joinRoute);
 
@@ -193,7 +201,28 @@ class SessionController extends GetxController {
     }
     await syncPendingPosts();
     await refreshRegionPosts();
+    promptActivityEvent();
     promptEngagement();
+  }
+
+  void clearActivityEventPrompt() {
+    final current = Map<String, dynamic>.from(home.value ?? {});
+    current['activityEvent'] = null;
+    home.value = current;
+    home.refresh();
+  }
+
+  void promptActivityEvent() {
+    if (_activityEventShown) return;
+    final raw = home.value?['activityEvent'];
+    if (raw is! Map) return;
+    final event = Map<String, dynamic>.from(raw);
+    if ('${event['id'] ?? ''}'.isEmpty) return;
+    _activityEventShown = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (Get.context == null) return;
+      showActivityEventDialog(event);
+    });
   }
 
   void clearEngagementPrompt() {
@@ -205,6 +234,7 @@ class SessionController extends GetxController {
 
   void promptEngagement() {
     if (_engagementShown) return;
+    if (home.value?['activityEvent'] is Map) return;
     final raw = home.value?['engagement'];
     if (raw is! Map) return;
     final event = Map<String, dynamic>.from(raw);
@@ -250,13 +280,49 @@ class SessionController extends GetxController {
     return event;
   }
 
+  List<Map<String, dynamic>> visiblePosts() {
+    final byId = <String, Map<String, dynamic>>{};
+    for (final post in regionPosts) {
+      final id = '${post['clientUuid'] ?? post['id'] ?? ''}';
+      if (id.isNotEmpty) byId[id] = Map<String, dynamic>.from(post);
+    }
+    for (final post in hive.pendingPosts()) {
+      final id = '${post['clientUuid'] ?? post['id'] ?? ''}';
+      if (id.isNotEmpty) byId[id] = Map<String, dynamic>.from(post);
+    }
+    return byId.values.toList()..sort(comparePostsByIssuePriority);
+  }
+
+  List<Map<String, dynamic>> myPosts() => visiblePosts().where(hive.isOwnPost).toList();
+
+  List<Map<String, dynamic>> otherPosts() {
+    return visiblePosts().where((post) => post['pending'] != true && !hive.isOwnPost(post)).toList();
+  }
+
+  List<Map<String, dynamic>> recentRegionalPosts({int limit = 4}) {
+    final items = visiblePosts();
+    items.sort((a, b) {
+      final aAt = DateTime.tryParse('${a['createdAt'] ?? ''}') ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bAt = DateTime.tryParse('${b['createdAt'] ?? ''}') ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bAt.compareTo(aAt);
+    });
+    return items.take(limit).toList();
+  }
+
+  void upsertRegionPost(Map<String, dynamic> post) {
+    final id = '${post['clientUuid'] ?? post['id'] ?? ''}';
+    if (id.isEmpty) return;
+    regionPosts.removeWhere((item) => '${item['clientUuid'] ?? item['id'] ?? ''}' == id);
+    regionPosts.insert(0, Map<String, dynamic>.from(post));
+    postsTick.value++;
+  }
+
   Future<void> refreshRegionPosts() async {
     if (!hasSession) return;
     try {
       final remote = await fetchRegionPosts();
-      for (final post in remote) {
-        await hive.savePost(post);
-      }
+      await hive.keepPendingImagePostsOnly();
+      regionPosts.assignAll(remote);
       postsTick.value++;
     } catch (e, stack) {
       AppLog.error('refreshRegionPosts failed', error: e, stack: stack, tag: 'POST');
@@ -265,19 +331,30 @@ class SessionController extends GetxController {
 
   Future<void> syncPendingPosts() async {
     if (!await hasNetwork()) return;
+    await hive.keepPendingImagePostsOnly();
     final pending = hive.pendingSync().where((item) => item['type'] == 'REGION_POST');
     for (final item in pending) {
       final id = '${item['id'] ?? ''}';
+      final mediaType = '${item['mediaType'] ?? 'image'}'.toLowerCase();
+      if (id.isEmpty) continue;
+      if (mediaType != 'image') {
+        await hive.deletePost(id);
+        await hive.removeSync(id);
+        continue;
+      }
       final path = '${item['mediaPath'] ?? ''}';
       final hasFile = path.isNotEmpty && File(path).existsSync();
-      final hasText = '${item['description'] ?? ''}'.trim().isNotEmpty;
-      if (id.isEmpty || (!hasFile && !hasText)) continue;
+      if (!hasFile) {
+        await hive.deletePost(id);
+        await hive.removeSync(id);
+        continue;
+      }
       try {
         final thumb = '${item['thumbnailPath'] ?? ''}';
         final uploaded = await uploadRegionPost(
           clientUuid: '${item['clientUuid'] ?? id}',
-          mediaType: '${item['mediaType'] ?? 'image'}',
-          filePath: hasFile ? path : null,
+          mediaType: 'image',
+          filePath: path,
           description: '${item['description'] ?? ''}',
           issueId: '${item['issueId'] ?? ''}'.isEmpty ? null : '${item['issueId']}',
           issueCode: '${item['issueCode'] ?? ''}'.isEmpty ? null : '${item['issueCode']}',
@@ -293,6 +370,7 @@ class SessionController extends GetxController {
         );
         await persistUploadedPost(uploaded, localPath: path, thumbnailPath: thumb.isEmpty ? null : thumb);
         await hive.removeSync(id);
+        upsertRegionPost(uploaded);
       } catch (e, stack) {
         AppLog.error('Pending post sync failed', error: e, stack: stack, tag: 'POST');
       }
@@ -427,7 +505,10 @@ class SessionController extends GetxController {
     await hive.clearSession();
     profile.value = null;
     home.value = null;
+    regionPosts.clear();
     _engagementShown = false;
+    _activityEventShown = false;
+    shellIndex.value = 0;
     if (Get.currentRoute != Routes.mobile) {
       Get.offAllNamed(Routes.mobile);
     }

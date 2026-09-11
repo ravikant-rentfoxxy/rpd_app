@@ -20,14 +20,15 @@ class ShellView extends StatelessWidget {
         body: pages[session.shellIndex.value],
         backgroundColor: HomeColors.paper,
         bottomNavigationBar: BottomAppBar(
-          color: Colors.white,
+          color: HomeColors.navBar,
           elevation: 0,
           padding: EdgeInsets.zero,
           shadowColor: Colors.transparent,
-          surfaceTintColor: Colors.white,
+          surfaceTintColor: HomeColors.navBar,
           child: Container(
-            height: 62,
+            height: 66,
             decoration: const BoxDecoration(
+              color: HomeColors.navBar,
               border: Border(top: BorderSide(color: HomeColors.border)),
             ),
             child: Row(
@@ -45,7 +46,7 @@ class ShellView extends StatelessWidget {
         floatingActionButton: DecoratedBox(
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            boxShadow: [BoxShadow(color: Color(0x73F07E1D), blurRadius: 20, offset: Offset(0, 10))],
+            boxShadow: [BoxShadow(color: Color(0x73EF8120), blurRadius: 20, offset: Offset(0, 10))],
           ),
           child: Material(
             color: HomeColors.orange,
@@ -57,9 +58,9 @@ class ShellView extends StatelessWidget {
                 Get.toNamed(Routes.createPost);
               },
               child: const SizedBox(
-                width: 52,
-                height: 52,
-                child: Icon(Icons.post_add_rounded, color: Colors.white, size: 24),
+                width: 54,
+                height: 54,
+                child: Icon(Icons.add_rounded, color: Colors.white, size: 24),
               ),
             ),
           ),

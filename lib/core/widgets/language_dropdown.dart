@@ -100,7 +100,7 @@ class _Pill extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+            border: Border.all(color: HomeColors.navyLine),
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(

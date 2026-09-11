@@ -10,8 +10,8 @@ class AppTheme {
       useMaterial3: true,
       scaffoldBackgroundColor: AppColors.paper,
       colorScheme: const ColorScheme.light(
-        primary: AppColors.brand,
-        secondary: AppColors.brandLight,
+        primary: AppColors.accent,
+        secondary: AppColors.brand,
         surface: AppColors.card,
         error: AppColors.bad,
       ),
@@ -41,8 +41,8 @@ class AppTheme {
         labelSmall: body.labelSmall?.copyWith(fontSize: 11, color: AppColors.ink3),
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.paper,
-        foregroundColor: AppColors.ink,
+        backgroundColor: HomeColors.navy,
+        foregroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
       ),

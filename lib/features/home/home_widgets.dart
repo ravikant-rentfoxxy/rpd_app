@@ -2,14 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/routes/app_routes.dart';
+import '../../core/constants/post_issues.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/api_error.dart';
 import '../../core/utils/local_image.dart';
 import '../../core/utils/open_url.dart';
+import '../../core/utils/relative_time.dart';
 import '../../data/models/home_feed.dart';
 import '../events/join_celebration.dart';
 import '../join/join_chrome.dart';
-import '../post/post_views.dart';
+import '../post/post_media.dart';
 import '../session/session_controller.dart';
 
 enum HomeFeedKind { video, blog, nearby }
@@ -19,8 +21,8 @@ Future<void> openHomeFeedItem(HomeFeedItem item) async {
   await openExternalUrl(item.url, preferExternal: item.youtubeId != null);
 }
 
-TextStyle homeTitleStyle({double size = 18, Color color = HomeColors.ink, FontWeight weight = FontWeight.w700}) {
-  return GoogleFonts.poppins(fontSize: size, fontWeight: weight, color: color, height: 1.25);
+TextStyle homeTitleStyle({double size = 18, Color color = HomeColors.ink, FontWeight weight = FontWeight.w600}) {
+  return GoogleFonts.bricolageGrotesque(fontSize: size, fontWeight: weight, color: color, height: 1.25);
 }
 
 class HomeSectionHeader extends StatelessWidget {
@@ -47,9 +49,9 @@ class HomeSectionHeader extends StatelessWidget {
             Text(
               eyebrow!,
               style: const TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.3,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1,
                 color: HomeColors.orange,
               ),
             ),
@@ -59,12 +61,12 @@ class HomeSectionHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Expanded(child: Text(title, style: homeTitleStyle())),
+              Expanded(child: Text(title, style: homeTitleStyle(size: 18))),
               GestureDetector(
                 onTap: onSeeMore,
                 child: Text(
                   'see_more'.tr,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: HomeColors.orangeDark),
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: HomeColors.orange),
                 ),
               ),
             ],
@@ -189,7 +191,7 @@ class _HomeEventCardState extends State<HomeEventCard> {
 
   @override
   Widget build(BuildContext context) {
-    const imageHeight = 168.0;
+    const imageHeight = 150.0;
     const joinHeight = 38.0;
     return Obx(() {
       Get.find<SessionController>().home.value;
@@ -199,21 +201,21 @@ class _HomeEventCardState extends State<HomeEventCard> {
         padding: widget.margin ?? const EdgeInsets.only(bottom: 18),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: const [BoxShadow(color: Color(0x141B1740), blurRadius: 24, offset: Offset(0, 10))],
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: const [BoxShadow(color: Color(0x1A291668), blurRadius: 18, offset: Offset(0, 8))],
           ),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
               onTap: data.id.isEmpty ? null : () => Get.toNamed(Routes.eventDetail, arguments: data.toJson()),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(28),
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
                   Column(
                     children: [
                       ClipRRect(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
                         child: SizedBox(
                           height: imageHeight,
                           width: double.infinity,
@@ -240,10 +242,17 @@ class _HomeEventCardState extends State<HomeEventCard> {
                                 left: 12,
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-                                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(999)),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
                                   child: Text(
                                     data.when.toUpperCase(),
-                                    style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: HomeColors.ink),
+                                    style: const TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: HomeColors.ink,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -272,7 +281,7 @@ class _HomeEventCardState extends State<HomeEventCard> {
                       DecoratedBox(
                         decoration: const BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+                          borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 22, 108, 16),
@@ -347,19 +356,32 @@ class EventPlaceholder extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF8C7AE6), Color(0xFF4A3F8C), Color(0xFF2B2560)],
+          colors: [HomeColors.tealMid, HomeColors.teal],
         ),
       ),
-      child: Center(
-        child: Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            color: const Color(0x33FFFFFF),
-            borderRadius: BorderRadius.circular(18),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -40,
+            bottom: -60,
+            child: Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: HomeColors.tealMid.withValues(alpha: 0.55)),
+            ),
           ),
-          child: Icon(icon, color: Colors.white, size: 34),
-        ),
+          Center(
+            child: Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: HomeColors.navyMuted.withValues(alpha: 0.55),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: HomeColors.navyDeep, size: 30),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -380,27 +402,7 @@ class HomeEventsBanner extends StatelessWidget {
           eyebrow: 'happening_soon'.tr,
           onSeeMore: () => Get.toNamed(Routes.upcomingEvents),
         ),
-        Builder(
-          builder: (context) {
-            final shown = events.take(5).toList();
-            final cardWidth = (MediaQuery.sizeOf(context).width - 64).clamp(260.0, 420.0);
-            return SizedBox(
-              height: 248,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                clipBehavior: Clip.none,
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.only(bottom: 10),
-                itemCount: shown.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 12),
-                itemBuilder: (context, index) => SizedBox(
-                  width: cardWidth,
-                  child: HomeEventCard(event: shown[index], margin: EdgeInsets.zero),
-                ),
-              ),
-            );
-          },
-        ),
+        HomeEventCard(event: events.first),
       ],
     );
   }
@@ -437,12 +439,12 @@ class _HomeVideoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () => openHomeFeedItem(item),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
             child: SizedBox(
               height: 120,
               width: double.infinity,
@@ -450,9 +452,9 @@ class _HomeVideoCard extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   if (item.imageUrl != null)
-                    Image.network(item.imageUrl!, fit: BoxFit.cover, errorBuilder: (_, _, _) => _VideoFallback(alt: alt))
+                    Image.network(item.imageUrl!, fit: BoxFit.cover, errorBuilder: (_, _, _) => ColoredBox(color: alt ? HomeColors.navyMid : HomeColors.orangeSoft))
                   else
-                    _VideoFallback(alt: alt),
+                    ColoredBox(color: alt ? HomeColors.navyMid : HomeColors.orangeSoft),
                   const Center(
                     child: CircleAvatar(
                       radius: 19,
@@ -464,7 +466,7 @@ class _HomeVideoCard extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 9),
+          const SizedBox(height: 8),
           Text(
             item.title,
             maxLines: 2,
@@ -472,7 +474,7 @@ class _HomeVideoCard extends StatelessWidget {
             style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, height: 1.3, color: HomeColors.ink),
           ),
           if (item.source.isNotEmpty) ...[
-            const SizedBox(height: 3),
+            const SizedBox(height: 2),
             Text(item.source, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: HomeColors.muted)),
           ],
         ],
@@ -481,57 +483,276 @@ class _HomeVideoCard extends StatelessWidget {
   }
 }
 
-class _VideoFallback extends StatelessWidget {
-  const _VideoFallback({required this.alt});
-  final bool alt;
+class HomeStatsRow extends StatelessWidget {
+  const HomeStatsRow({super.key, required this.members, required this.meetings});
+  final String members;
+  final String meetings;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: alt
-              ? const [Color(0xFF7C6FA8), Color(0xFF4A3F76), Color(0xFF2B2550)]
-              : const [Color(0xFFE8A55C), Color(0xFFC9672E), Color(0xFF7A3B1E)],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: _StatCard(
+              value: members,
+              label: 'members_added'.tr,
+              icon: Icons.groups_outlined,
+              iconBg: HomeColors.navy,
+              iconFg: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _StatCard(
+              value: meetings,
+              label: 'meetings_held'.tr,
+              icon: Icons.calendar_month_outlined,
+              iconBg: HomeColors.peach,
+              iconFg: HomeColors.orange,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.value,
+    required this.label,
+    required this.icon,
+    required this.iconBg,
+    required this.iconFg,
+  });
+  final String value;
+  final String label;
+  final IconData icon;
+  final Color iconBg;
+  final Color iconFg;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: HomeColors.surface, borderRadius: BorderRadius.circular(24)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+            child: Icon(icon, color: iconFg, size: 16),
+          ),
+          const SizedBox(height: 12),
+          Text(value, style: homeTitleStyle(size: 24)),
+          const SizedBox(height: 2),
+          Text(label, style: const TextStyle(fontSize: 12, color: HomeColors.muted)),
+        ],
+      ),
+    );
+  }
+}
+
+class HomeLeaderboard extends StatelessWidget {
+  const HomeLeaderboard({super.key, required this.rank, required this.size, required this.score});
+  final String rank;
+  final String size;
+  final num score;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = (score / 100).clamp(0, 1).toDouble();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+        decoration: BoxDecoration(color: HomeColors.navy, borderRadius: BorderRadius.circular(28)),
+        child: Stack(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('mandal_leaderboard'.tr, style: const TextStyle(fontSize: 12, color: HomeColors.navyMuted)),
+                const SizedBox(height: 4),
+                Text('rank_of'.trParams({'rank': rank, 'size': size}), style: homeTitleStyle(size: 21, color: Colors.white)),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: LinearProgressIndicator(
+                    value: value,
+                    minHeight: 7,
+                    backgroundColor: HomeColors.navyMid,
+                    color: HomeColors.orange,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'points_this_month'.trParams({'n': '${(score * 4).round()}'}),
+                        style: const TextStyle(fontSize: 12, color: HomeColors.navyMuted),
+                      ),
+                    ),
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(text: '${score.round()}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+                          TextSpan(text: ' ${'points'.tr}', style: const TextStyle(color: HomeColors.navyMuted, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            Positioned(
+              top: 0,
+              right: 0,
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: const BoxDecoration(color: HomeColors.orange, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: Text(rank, style: homeTitleStyle(size: 16, color: Colors.white)),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class HomePostsRail extends StatelessWidget {
-  const HomePostsRail({super.key, required this.posts});
+class HomeBlogRail extends StatelessWidget {
+  const HomeBlogRail({super.key, required this.items});
+  final List<HomeFeedItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = items.take(6).toList();
+    if (shown.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: SizedBox(
+        height: 186,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: shown.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 12),
+          itemBuilder: (context, index) => HomeFeedCard(item: shown[index]),
+        ),
+      ),
+    );
+  }
+}
+
+class HomeActivityRail extends StatelessWidget {
+  const HomeActivityRail({super.key, required this.posts});
   final List<Map<String, dynamic>> posts;
+
+  static const _washes = [HomeColors.teal, HomeColors.accent300, HomeColors.navyMid, HomeColors.orangeSoft];
 
   @override
   Widget build(BuildContext context) {
     if (posts.isEmpty) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 18),
-        child: Text(
-          'region_posts_empty'.tr,
-          style: const TextStyle(color: HomeColors.muted, fontSize: 13),
-        ),
+        child: Text('region_posts_empty'.tr, style: const TextStyle(color: HomeColors.muted, fontSize: 13)),
       );
     }
-    return SizedBox(
-      height: 248,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        clipBehavior: Clip.none,
-        padding: const EdgeInsets.only(bottom: 12),
-        itemCount: posts.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 12),
-        itemBuilder: (context, index) => SizedBox(
-          width: 220,
-          child: RegionPostCard(post: posts[index], compact: true),
+    final shown = posts.take(6).toList();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: SizedBox(
+        height: 228,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: shown.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 12),
+          itemBuilder: (context, index) => _ActivityCard(post: shown[index], wash: _washes[index % _washes.length]),
         ),
       ),
     );
   }
 }
+
+class _ActivityCard extends StatelessWidget {
+  const _ActivityCard({required this.post, required this.wash});
+  final Map<String, dynamic> post;
+  final Color wash;
+
+  @override
+  Widget build(BuildContext context) {
+    final raw = postImageUrl(post) ?? post['thumbnailUrl'] ?? post['mediaPath'] ?? post['photoPath'];
+    final path = resolveStorageUrl(raw) ?? localPhotoPath(raw);
+    final video = isVideoPost(post);
+    final issue = issueLabelOf(post);
+    final description = '${post['description'] ?? ''}'.trim();
+    final when = lastActiveWhen(post['createdAt']);
+    return InkWell(
+      onTap: () => Get.toNamed(Routes.postDetail, arguments: post),
+      borderRadius: BorderRadius.circular(20),
+      child: SizedBox(
+        width: 220,
+        child: DecoratedBox(
+          decoration: BoxDecoration(color: HomeColors.surface, borderRadius: BorderRadius.circular(20)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                child: SizedBox(
+                  height: 110,
+                  width: 220,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      path != null && path.isNotEmpty
+                          ? localOrNetworkPhoto(raw: path, fit: BoxFit.cover, fallback: ColoredBox(color: wash))
+                          : ColoredBox(color: wash),
+                      if (video) ...[
+                        const ColoredBox(color: Color(0x40000000)),
+                        const VideoPlayBadge(size: 44),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (issue.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(color: HomeColors.peach, borderRadius: BorderRadius.circular(999)),
+                        child: Text(issue, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: HomeColors.orangeDark)),
+                      ),
+                    if (description.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, height: 1.4, color: HomeColors.ink)),
+                    ],
+                    if (when.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(when, style: const TextStyle(fontSize: 11, color: HomeColors.muted)),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 
 class HomeFeedRail extends StatelessWidget {
   const HomeFeedRail({super.key, required this.items, required this.kind});
@@ -585,16 +806,15 @@ class _BlogTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Padding(
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             item.title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, height: 1.3, color: HomeColors.ink),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, height: 1.25, color: HomeColors.ink),
           ),
           if (item.source.isNotEmpty) ...[
             const SizedBox(height: 4),

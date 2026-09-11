@@ -65,7 +65,11 @@ Future<Map<String, dynamic>> uploadRegionPost({
 }
 
 Future<void> persistUploadedPost(Map<String, dynamic> post, {String? localPath, String? thumbnailPath}) async {
-  await Get.find<HiveService>().savePost(post);
+  final hive = Get.find<HiveService>();
+  final id = '${post['id'] ?? ''}';
+  final clientUuid = '${post['clientUuid'] ?? ''}';
+  if (id.isNotEmpty) await hive.deletePost(id);
+  if (clientUuid.isNotEmpty && clientUuid != id) await hive.deletePost(clientUuid);
   await _deleteLocalFile(localPath);
   await _deleteLocalFile(thumbnailPath);
 }

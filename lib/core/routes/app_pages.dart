@@ -28,6 +28,8 @@ import '../../features/post/post_video_view.dart';
 import '../../features/events/create_event_view.dart';
 import '../../features/events/event_detail_view.dart';
 import '../../features/engagement/engagement_play_view.dart';
+import '../../features/activity_event/activity_event_play_view.dart';
+import '../../features/activity_event/activity_events_list_view.dart';
 import 'app_routes.dart';
 
 class AppPages {
@@ -95,6 +97,8 @@ class AppPages {
     GetPage(name: Routes.createEvent, page: () => const CreateEventView()),
     GetPage(name: Routes.eventDetail, page: () => const EventDetailView()),
     GetPage(name: Routes.engagementPlay, page: () => const EngagementPlayView()),
+    GetPage(name: Routes.activityEvents, page: () => const ActivityEventsListView()),
+    GetPage(name: Routes.activityEventPlay, page: () => const ActivityEventPlayView()),
     GetPage(name: Routes.posts, page: () => const PostsListView()),
     GetPage(name: Routes.createPost, page: () => const CreatePostView()),
     GetPage(name: Routes.postVideo, page: () => const PostVideoPlayerView()),

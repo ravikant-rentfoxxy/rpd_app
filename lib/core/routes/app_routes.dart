@@ -35,6 +35,8 @@ class Routes {
   static const createEvent = '/events/create';
   static const eventDetail = '/events/detail';
   static const engagementPlay = '/engagement/play';
+  static const activityEvents = '/activity-events';
+  static const activityEventPlay = '/activity-events/play';
   static const posts = '/posts';
   static const createPost = '/posts/create';
   static const postVideo = '/posts/video';

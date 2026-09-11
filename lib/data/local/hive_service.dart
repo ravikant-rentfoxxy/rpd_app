@@ -211,6 +211,34 @@ class HiveService extends GetxService {
     await posts.put(id, Map<String, dynamic>.from(row));
   }
 
+  Future<void> deletePost(String id) async {
+    if (id.isEmpty) return;
+    await posts.delete(id);
+  }
+
+  bool _isPendingPost(Map<String, dynamic> post) => post['pending'] == true;
+
+  bool _isImagePost(Map<String, dynamic> post) {
+    final type = '${post['mediaType'] ?? 'image'}'.toLowerCase();
+    return type == 'image';
+  }
+
+  /// Local box is only an offline image queue. Uploaded / video / audio rows are dropped.
+  Future<void> keepPendingImagePostsOnly() async {
+    final keep = <String, Map<String, dynamic>>{};
+    for (final post in allPosts()) {
+      if (!_isPendingPost(post) || !_isImagePost(post)) continue;
+      final id = '${post['id'] ?? ''}';
+      if (id.isNotEmpty) keep[id] = post;
+    }
+    await posts.clear();
+    for (final post in keep.values) {
+      await savePost(post);
+    }
+  }
+
+  List<Map<String, dynamic>> pendingPosts() => allPosts().where(_isPendingPost).toList();
+
   List<Map<String, dynamic>> regionalPosts() {
     final member = profile ?? {};
     final booth = member['booth'] is Map ? Map<String, dynamic>.from(member['booth'] as Map) : <String, dynamic>{};

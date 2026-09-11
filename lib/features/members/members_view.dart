@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
@@ -43,23 +42,14 @@ class MembersView extends StatelessWidget {
   Widget build(BuildContext context) {
     final listController = Get.put(MembersListController());
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: HomeColors.navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: Text('my_recruits'.tr),
+      appBar: OrganicAppBar(
+        title: 'my_recruits'.tr,
         actions: const [
           Padding(
             padding: EdgeInsets.only(right: 12),
-            child: Center(child: LanguageDropdown(onDark: true)),
+            child: Center(child: LanguageDropdown(pill: true)),
           ),
         ],
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: HomeColors.navy,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-        ),
       ),
       body: Obx(() {
         final data = listController.data;
@@ -70,9 +60,9 @@ class MembersView extends StatelessWidget {
           children: [
             Row(
               children: [
-                _c('${counts['verified'] ?? 0}', 'verified'.tr, AppColors.ok),
-                _c('${counts['pending'] ?? 0}', 'pending'.tr, AppColors.warn),
-                _c('${counts['rejected'] ?? 0}', 'rejected'.tr, AppColors.bad),
+                _c('${counts['verified'] ?? 0}', 'verified'.tr, HomeColors.navyMid),
+                _c('${counts['pending'] ?? 0}', 'pending'.tr, HomeColors.orange),
+                _c('${counts['rejected'] ?? 0}', 'rejected'.tr, HomeColors.muted),
               ],
             ),
             const SizedBox(height: 8),
@@ -110,10 +100,10 @@ class MembersView extends StatelessWidget {
   Widget _c(String n, String l, Color c) => Expanded(
         child: Container(
           margin: const EdgeInsets.only(right: 8),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: AppColors.card, border: Border.all(color: AppColors.rule), borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(20)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            DisplayText(n, size: 22, color: c),
+            DisplayText(n, size: 24, color: c),
             Text(l, style: const TextStyle(fontSize: 11, color: AppColors.ink3)),
           ]),
         ),

@@ -209,8 +209,13 @@ class _OtpViewState extends State<OtpView> {
                       IconButton(
                         onPressed: Get.back,
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.black.withValues(alpha: 0.25),
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
+                          shape: const CircleBorder(),
+                          fixedSize: const Size(40, 40),
+                        ),
+                        icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
                       ),
                       const Spacer(),
                       const _LoginLogo(),

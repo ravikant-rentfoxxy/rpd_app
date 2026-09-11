@@ -16,9 +16,51 @@ import '../../core/utils/local_image.dart';
 import '../join/join_chrome.dart';
 
 Source _audioSource(String path) {
-  final url = resolveMediaUrl(path);
+  final url = resolveStorageUrl(path) ?? resolveMediaUrl(path, kind: 'audio');
   if (url != null) return UrlSource(url);
   return DeviceFileSource(path);
+}
+
+Future<VideoPlayerController> openVideoController(String path) async {
+  final hls = resolveVideoHlsUrl(path);
+  if (hls != null) return _openHlsController(hls);
+  final url = resolveMediaUrl(path);
+  if (url != null) {
+    if (isHlsUrl(url)) return _openHlsController(url);
+    return VideoPlayerController.networkUrl(Uri.parse(url));
+  }
+  return VideoPlayerController.file(File(localPhotoPath(path) ?? path));
+}
+
+Future<VideoPlayerController> _openHlsController(String url) async {
+  Object? last;
+  for (var attempt = 0; attempt < 8; attempt++) {
+    final controller = VideoPlayerController.networkUrl(Uri.parse(url), formatHint: VideoFormat.hls);
+    try {
+      await controller.initialize();
+      return controller;
+    } catch (e) {
+      last = e;
+      await controller.dispose();
+      if (attempt < 7) await Future<void>.delayed(Duration(seconds: 3 + attempt));
+    }
+  }
+  throw last ?? StateError('Video is not ready yet');
+}
+
+Future<void> initializeVideo(VideoPlayerController controller) async {
+  if (controller.value.isInitialized) return;
+  Object? last;
+  for (var attempt = 0; attempt < 4; attempt++) {
+    try {
+      await controller.initialize();
+      return;
+    } catch (e) {
+      last = e;
+      if (attempt < 3) await Future<void>.delayed(Duration(seconds: 2 + attempt));
+    }
+  }
+  throw last ?? StateError('Video is not ready yet');
 }
 
 class AudioRecordPanel extends StatefulWidget {
@@ -316,6 +358,30 @@ Future<String?> generateVideoThumbnail(String videoPath) async {
   }
 }
 
+class VideoPlayBadge extends StatelessWidget {
+  const VideoPlayBadge({super.key, this.size = 56});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Center(
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: const Color(0xE6000000),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2),
+            boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 8)],
+          ),
+          child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: size * 0.62),
+        ),
+      ),
+    );
+  }
+}
+
 class VideoThumbTile extends StatelessWidget {
   const VideoThumbTile({
     super.key,
@@ -334,7 +400,13 @@ class VideoThumbTile extends StatelessWidget {
     return Material(
       color: HomeColors.navy,
       child: InkWell(
-        onTap: onTap ?? () => Get.toNamed(Routes.postVideo, arguments: {'path': videoPath}),
+        onTap: onTap ??
+            () => Get.toNamed(Routes.postVideo, arguments: {
+                  'path': videoPath,
+                  'mediaUrl': resolveVideoHlsUrl(videoPath) ?? videoPath,
+                  'mediaKey': streamVideoId(videoPath) == null ? null : 'stream/${streamVideoId(videoPath)}',
+                  'videoId': streamVideoId(videoPath),
+                }),
         child: SizedBox(
           height: height,
           width: double.infinity,
@@ -342,19 +414,12 @@ class VideoThumbTile extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               localOrNetworkPhoto(
-                raw: thumbnail,
+                raw: resolveStorageUrl(thumbnail) ?? resolveStreamThumbnailUrl(videoPath) ?? thumbnail,
                 fit: BoxFit.cover,
                 fallback: const ColoredBox(color: HomeColors.navy),
               ),
-              const ColoredBox(color: Color(0x33000000)),
-              Center(
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: const BoxDecoration(color: Color(0x99000000), shape: BoxShape.circle),
-                  child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 34),
-                ),
-              ),
+              const ColoredBox(color: Color(0x40000000)),
+              VideoPlayBadge(size: height < 130 ? 44 : 56),
             ],
           ),
         ),
@@ -407,12 +472,9 @@ class _VideoPreviewBoxState extends State<VideoPreviewBox> {
     _controller = null;
     _ready = false;
     if (mounted) setState(() {});
-    final url = resolveMediaUrl(path);
-    final controller = url != null
-        ? VideoPlayerController.networkUrl(Uri.parse(url))
-        : VideoPlayerController.file(File(path));
+    final controller = await openVideoController(path);
     try {
-      await controller.initialize();
+      await initializeVideo(controller);
       controller.setLooping(true);
       if (!mounted) {
         await controller.dispose();

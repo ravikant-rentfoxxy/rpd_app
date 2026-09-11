@@ -23,11 +23,14 @@ class PostDetailView extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = post;
     final type = '${data['mediaType'] ?? 'image'}'.toLowerCase();
-    final raw = data['mediaUrl'] ?? data['mediaPath'] ?? data['photoPath'];
-    final path = resolveMediaUrl(raw) ?? localPhotoPath(raw);
-    final thumb = data['thumbnailUrl'] ?? data['thumbnailPath'] ?? data['thumbnailKey'];
+    final raw = data['mediaUrl'] ?? data['mediaPath'] ?? data['photoPath'] ?? data['mediaKey'];
+    final path = switch (type) {
+      'video' => postVideoUrl(data) ?? localPhotoPath(raw),
+      'audio' => postAudioUrl(data) ?? localPhotoPath(raw),
+      _ => postImageUrl(data) ?? localPhotoPath(raw),
+    };
+    final thumb = data['thumbnailUrl'] ?? data['thumbnailPath'] ?? data['thumbnailKey'] ?? resolveStreamThumbnailUrl(raw);
     final description = '${data['description'] ?? ''}'.trim();
-    final author = '${data['authorName'] ?? ''}'.trim();
     final issue = issueLabelOf(data);
     final region = '${data['regionLabel'] ?? ''}'.trim();
     final pending = data['pending'] == true;
@@ -58,7 +61,7 @@ class PostDetailView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (path != null && path.isNotEmpty)
-                  _DetailMedia(type: type, path: path, thumbnail: thumb),
+                  _DetailMedia(type: type, path: path, thumbnail: thumb, post: data),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
                   child: Column(
@@ -75,9 +78,6 @@ class PostDetailView extends StatelessWidget {
                         ),
                         const SizedBox(height: 14),
                       ],
-                      if (author.isNotEmpty)
-                        Text(author, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: HomeColors.ink)),
-                      const SizedBox(height: 4),
                       Text(
                         [
                           lastActiveWhen(data['createdAt']),
@@ -99,10 +99,11 @@ class PostDetailView extends StatelessWidget {
 }
 
 class _DetailMedia extends StatelessWidget {
-  const _DetailMedia({required this.type, required this.path, this.thumbnail});
+  const _DetailMedia({required this.type, required this.path, this.thumbnail, this.post});
   final String type;
   final String? path;
   final Object? thumbnail;
+  final Map<String, dynamic>? post;
 
   @override
   Widget build(BuildContext context) {
@@ -115,7 +116,10 @@ class _DetailMedia extends StatelessWidget {
         videoPath: path!,
         thumbnail: thumbnail,
         height: 240,
-        onTap: () => Get.toNamed(Routes.postVideo, arguments: {'path': path}),
+        onTap: () => Get.toNamed(Routes.postVideo, arguments: {
+          ...?post,
+          'path': path,
+        }),
       );
     }
     return SizedBox(

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/language_dropdown.dart';
@@ -43,7 +42,7 @@ class ActivityHubView extends StatelessWidget {
           const SizedBox(height: 4),
           Text('pick_one'.tr, style: const TextStyle(color: AppColors.ink3, fontSize: 13)),
           const SizedBox(height: 16),
-          const ActivityActionGrid(aspectRatio: 2.2),
+          const ActivityActionGrid(aspectRatio: 1.15),
         ],
       ),
     );
@@ -51,22 +50,13 @@ class ActivityHubView extends StatelessWidget {
 }
 
 PreferredSizeWidget _hubAppBar() {
-  return AppBar(
-    backgroundColor: HomeColors.navy,
-    foregroundColor: Colors.white,
-    elevation: 0,
-    scrolledUnderElevation: 0,
-    title: Text('record_activity'.tr),
+  return OrganicAppBar(
+    title: 'record_activity'.tr,
     actions: const [
       Padding(
         padding: EdgeInsets.only(right: 12),
-        child: Center(child: LanguageDropdown(onDark: true)),
+        child: Center(child: LanguageDropdown(pill: true)),
       ),
     ],
-    systemOverlayStyle: const SystemUiOverlayStyle(
-      statusBarColor: HomeColors.navy,
-      statusBarIconBrightness: Brightness.light,
-      statusBarBrightness: Brightness.dark,
-    ),
   );
 }

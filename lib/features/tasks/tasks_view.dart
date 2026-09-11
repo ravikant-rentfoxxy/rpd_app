@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:rpd_app/features/join/join_chrome.dart';
 import '../../core/theme/app_colors.dart';
@@ -39,17 +38,9 @@ class _TasksViewState extends State<TasksView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: HomeColors.paper,
-      appBar: AppBar(
-        backgroundColor: HomeColors.navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
+      appBar: OrganicAppBar(
+        title: widget.asTab ? 'work'.tr : 'my_tasks'.tr,
         automaticallyImplyLeading: !widget.asTab,
-        title: Text(widget.asTab ? 'work'.tr : 'my_tasks'.tr),
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: HomeColors.navy,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-        ),
       ),
       body: Obx(() {
         final groups = Map<String, dynamic>.from(data.value?['groups'] as Map? ?? {});
@@ -60,14 +51,22 @@ class _TasksViewState extends State<TasksView> {
             children: [
               Padding(
                 padding: const EdgeInsets.only(top: 12, bottom: 6),
-                child: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.ink3, fontSize: 12)),
+                child: Text(
+                  title.toUpperCase(),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                    color: bad ? HomeColors.orange : HomeColors.muted,
+                    fontSize: 11,
+                  ),
+                ),
               ),
               ...items.map((e) {
                 final t = Map<String, dynamic>.from(e as Map);
                 final assigner = t['assigner'] is Map ? Map<String, dynamic>.from(t['assigner'] as Map) : <String, dynamic>{};
                 final sub = '${t['detail'] ?? t['description'] ?? assigner['fullName'] ?? t['assignerName'] ?? ''}'.trim();
                 return AppCard(
-                  tone: bad ? CardTone.bad : CardTone.plain,
+                  tone: bad ? CardTone.warn : CardTone.plain,
                   child: CardTitle(t['title'] as String? ?? '', sub: sub.isEmpty ? null : sub),
                 );
               }),

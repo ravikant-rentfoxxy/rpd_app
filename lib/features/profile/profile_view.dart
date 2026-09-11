@@ -52,17 +52,7 @@ class _ProfileViewState extends State<ProfileView> {
     final session = Get.find<SessionController>();
     return Scaffold(
       backgroundColor: HomeColors.paper,
-      appBar: AppBar(
-        backgroundColor: HomeColors.navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text('profile'.trFallback('Profile')),
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: HomeColors.navy,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-        ),
-      ),
+      appBar: OrganicAppBar(title: 'profile'.trFallback('Profile')),
       body: Obx(() {
         session.profile.value;
         return ListView(
@@ -142,6 +132,23 @@ class _ProfileViewState extends State<ProfileView> {
               controller: c.name,
               hint: 'enter_name'.tr,
               icon: Icons.person_outline_rounded,
+            ),
+            AppField(
+              label: 'voter_id'.trFallback('Voter ID card number'),
+              controller: c.voterId,
+              hint: 'voter_id_hint'.trFallback('As on voter ID, e.g. ABC1234567'),
+              icon: Icons.badge_outlined,
+              keyboard: TextInputType.visiblePassword,
+              maxLength: 10,
+              formatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+                TextInputFormatter.withFunction((oldValue, newValue) {
+                  return TextEditingValue(
+                    text: newValue.text.toUpperCase(),
+                    selection: newValue.selection,
+                  );
+                }),
+              ],
             ),
             AppField(
               label: '${'dob'.tr} *',
@@ -252,6 +259,7 @@ class _ProfileController extends GetxController {
   late final TextEditingController pincode;
   late final TextEditingController memberId;
   late final TextEditingController mobile;
+  late final TextEditingController voterId;
 
   final gender = 'MALE'.obs;
   final states = <_GeoOption>[].obs;
@@ -285,6 +293,7 @@ class _ProfileController extends GetxController {
     pincode = TextEditingController(text: '${member['pincode'] ?? ''}');
     memberId = TextEditingController(text: displayMemberId(member));
     mobile = TextEditingController(text: _mobileDigits('${member['mobile'] ?? ''}'));
+    voterId = TextEditingController(text: '${member['voterId'] ?? ''}'.toUpperCase());
     final currentGender = '${member['gender'] ?? 'MALE'}';
     gender.value = {'MALE', 'FEMALE', 'OTHER'}.contains(currentGender) ? currentGender : 'MALE';
     stateId.value = _id(member['stateId']);
@@ -303,6 +312,7 @@ class _ProfileController extends GetxController {
     pincode.dispose();
     memberId.dispose();
     mobile.dispose();
+    voterId.dispose();
     super.onClose();
   }
 
@@ -425,6 +435,11 @@ class _ProfileController extends GetxController {
       Get.snackbar('Error', 'enter_name'.tr);
       return;
     }
+    final epic = voterId.text.trim().toUpperCase();
+    if (epic.isNotEmpty && !RegExp(r'^[A-Z]{3}[0-9]{7}$').hasMatch(epic)) {
+      Get.snackbar('Error', 'voter_id_invalid'.trFallback('Enter a valid voter ID card number'));
+      return;
+    }
     if (!isValidDob(dob.text)) {
       Get.snackbar('Error', 'dob_invalid'.tr);
       return;
@@ -446,6 +461,7 @@ class _ProfileController extends GetxController {
         'gender': gender.value,
         'address': address.text.trim(),
         'pincode': pin,
+        'voterId': epic,
         'assemblyId': assemblyId.value,
         if (boothId.value != null) 'boothId': boothId.value,
       });

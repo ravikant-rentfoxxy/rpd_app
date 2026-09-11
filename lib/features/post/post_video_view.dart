@@ -1,11 +1,10 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:video_player/video_player.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/utils/app_log.dart';
 import '../../core/utils/local_image.dart';
 import '../../core/utils/relative_time.dart';
 import '../join/join_chrome.dart';
@@ -18,9 +17,9 @@ class PostVideoPlayerView extends StatefulWidget {
 }
 
 class _PostVideoPlayerViewState extends State<PostVideoPlayerView> {
-  VideoPlayerController? _controller;
-  var _ready = false;
-  var _playing = false;
+  WebViewController? _controller;
+  var _loading = true;
+  var _failed = false;
 
   Map<String, dynamic> get args {
     final raw = Get.arguments;
@@ -29,82 +28,83 @@ class _PostVideoPlayerViewState extends State<PostVideoPlayerView> {
     return {};
   }
 
+  String? get _embedUrl {
+    return postStreamEmbedUrl(args) ??
+        resolveStreamEmbedUrl(args['path'] ?? args['mediaUrl'] ?? args['mediaKey'] ?? args['mediaPath']);
+  }
+
   @override
   void initState() {
     super.initState();
-    _load('${args['path'] ?? ''}');
+    _open();
   }
 
-  Future<void> _load(String path) async {
-    if (path.isEmpty) return;
-    final url = resolveMediaUrl(path);
-    final controller = url != null
-        ? VideoPlayerController.networkUrl(Uri.parse(url))
-        : VideoPlayerController.file(File(localPhotoPath(path) ?? path));
-    try {
-      await controller.initialize();
-      controller.setLooping(true);
-      await controller.play();
-      if (!mounted) {
-        await controller.dispose();
-        return;
-      }
-      controller.addListener(_onTick);
+  void _open() {
+    final url = _embedUrl;
+    if (url == null || url.isEmpty) {
       setState(() {
-        _controller = controller;
-        _ready = true;
-        _playing = true;
+        _failed = true;
+        _loading = false;
       });
-    } catch (e, stack) {
-      await controller.dispose();
-      AppLog.error('Post video play failed', error: e, stack: stack, tag: 'POST');
+      return;
     }
-  }
 
-  void _onTick() {
-    final controller = _controller;
-    if (!mounted || controller == null) return;
-    final playing = controller.value.isPlaying;
-    if (playing != _playing) setState(() => _playing = playing);
-  }
-
-  Future<void> _toggle() async {
-    final controller = _controller;
-    if (controller == null || !_ready) return;
-    if (controller.value.isPlaying) {
-      await controller.pause();
+    late final PlatformWebViewControllerCreationParams params;
+    if (WebViewPlatform.instance is WebKitWebViewPlatform) {
+      params = WebKitWebViewControllerCreationParams(
+        allowsInlineMediaPlayback: true,
+        mediaTypesRequiringUserAction: const <PlaybackMediaTypes>{},
+      );
     } else {
-      await controller.play();
+      params = const PlatformWebViewControllerCreationParams();
     }
-    if (mounted) setState(() => _playing = controller.value.isPlaying);
-  }
 
-  @override
-  void dispose() {
-    _controller?.removeListener(_onTick);
-    _controller?.dispose();
-    super.dispose();
+    final controller = WebViewController.fromPlatformCreationParams(params)
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.black)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageFinished: (_) {
+            if (mounted) setState(() => _loading = false);
+          },
+          onWebResourceError: (_) {
+            if (mounted) setState(() => _loading = false);
+          },
+          onNavigationRequest: (request) {
+            final host = Uri.tryParse(request.url)?.host ?? '';
+            final allowed = host.contains('mediadelivery.net') ||
+                host.contains('b-cdn.net') ||
+                host.contains('bunnycdn.com') ||
+                host.contains('iframe.mediadelivery.net');
+            return allowed ? NavigationDecision.navigate : NavigationDecision.prevent;
+          },
+        ),
+      );
+
+    final platform = controller.platform;
+    if (platform is AndroidWebViewController) {
+      platform.setMediaPlaybackRequiresUserGesture(false);
+    }
+
+    setState(() {
+      _controller = controller;
+      _loading = true;
+      _failed = false;
+    });
+    controller.loadRequest(Uri.parse(url));
   }
 
   @override
   Widget build(BuildContext context) {
-    final author = '${args['author'] ?? ''}'.trim();
     final when = lastActiveWhen(args['createdAt']);
     final description = '${args['description'] ?? ''}'.trim();
-    final controller = _controller;
-    final progress = !_ready || controller == null || controller.value.duration.inMilliseconds <= 0
-        ? 0.0
-        : (controller.value.position.inMilliseconds / controller.value.duration.inMilliseconds).clamp(0.0, 1.0);
-    final ratio = _ready && controller != null && controller.value.size.height > 0
-        ? controller.value.aspectRatio
-        : 16 / 9;
     return Scaffold(
       backgroundColor: HomeColors.paper,
       appBar: AppBar(
         backgroundColor: HomeColors.navy,
         foregroundColor: Colors.white,
         elevation: 0,
-        title: Text(author.isEmpty ? 'post_media_video'.trFallback('Video') : author),
+        title: Text('post_media_video'.trFallback('Video')),
         systemOverlayStyle: const SystemUiOverlayStyle(
           statusBarColor: HomeColors.navy,
           statusBarIconBrightness: Brightness.light,
@@ -115,44 +115,37 @@ class _PostVideoPlayerViewState extends State<PostVideoPlayerView> {
         children: [
           ColoredBox(
             color: Colors.black,
-            child: GestureDetector(
-              onTap: _toggle,
-              child: AspectRatio(
-                aspectRatio: ratio,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    if (_ready && controller != null)
-                      SizedBox.expand(child: VideoPlayer(controller))
-                    else
-                      const CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    if (_ready && !_playing)
-                      const Material(
-                        color: Colors.black45,
-                        shape: CircleBorder(),
-                        child: Padding(
-                          padding: EdgeInsets.all(12),
-                          child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 42),
-                        ),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (_controller != null) WebViewWidget(controller: _controller!),
+                  if (_failed)
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'post_video_processing'.trFallback('Bunny is still encoding this video. Try again in a minute.'),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white, height: 1.4),
+                          ),
+                          const SizedBox(height: 16),
+                          TextButton(
+                            onPressed: _open,
+                            child: Text('retry'.trFallback('Retry'), style: const TextStyle(color: HomeColors.orange)),
+                          ),
+                        ],
                       ),
-                  ],
-                ),
+                    )
+                  else if (_loading)
+                    const Center(child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+                ],
               ),
             ),
           ),
-          if (_ready && controller != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(99),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  minHeight: 3,
-                  backgroundColor: const Color(0xFFE4DCD0),
-                  color: HomeColors.orange,
-                ),
-              ),
-            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
             child: Column(
@@ -165,10 +158,11 @@ class _PostVideoPlayerViewState extends State<PostVideoPlayerView> {
                   ),
                   const SizedBox(height: 8),
                 ],
-                Text(
-                  [author, when].where((e) => e.isNotEmpty).join(' · '),
-                  style: const TextStyle(color: HomeColors.muted, fontSize: 12),
-                ),
+                if (when.isNotEmpty)
+                  Text(
+                    when,
+                    style: const TextStyle(color: HomeColors.muted, fontSize: 12),
+                  ),
               ],
             ),
           ),

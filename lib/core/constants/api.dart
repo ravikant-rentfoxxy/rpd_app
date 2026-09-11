@@ -47,7 +47,12 @@ class ApiConfig {
     if (uri == null || uri.host.isEmpty) return url;
     final loopback = uri.host == 'localhost' || uri.host == '127.0.0.1';
     final emulatorOnly = uri.host == '10.0.2.2';
-    final lan = dotenv.maybeGet('API_LAN_URL')?.trim();
+    String? lan;
+    try {
+      lan = dotenv.maybeGet('API_LAN_URL')?.trim();
+    } catch (_) {
+      lan = null;
+    }
     final onPhone = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
     if (onPhone && lan != null && lan.isNotEmpty && (loopback || emulatorOnly)) {
       return _withOrigin(uri, lan);
