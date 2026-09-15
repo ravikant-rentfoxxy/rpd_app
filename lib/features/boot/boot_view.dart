@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/constants/api.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/push/push_service.dart';
 import '../../data/local/hive_service.dart';
 import '../session/session_controller.dart';
 
@@ -39,6 +42,9 @@ class _BootViewState extends State<BootView> {
       return;
     }
     session.markActive();
+    if (Get.isRegistered<PushService>()) {
+      unawaited(Get.find<PushService>().syncToken());
+    }
     session.openPostAuth();
   }
 

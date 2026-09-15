@@ -12,6 +12,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/app_log.dart';
 import '../../core/utils/local_image.dart';
 import '../session/session_controller.dart';
+import '../../core/widgets/flash.dart';
 
 const _cardPurple = Color(0xFF4A1878);
 const _cardOrange = Color(0xFFE88224);
@@ -20,7 +21,7 @@ const _cardInk = Color(0xFF1B1740);
 
 Future<void> showMembershipCardOverlay() async {
   final session = Get.find<SessionController>();
-  if (!session.guardVerifiedAccess()) return;
+  if (!session.guardMemberActions()) return;
   session.refreshMe();
   await Get.dialog(
     const MembershipCardOverlay(),
@@ -172,14 +173,38 @@ class _MembershipCardOverlayState extends State<MembershipCardOverlay> with Sing
   Future<void> _shareCardImage(Object? photoUrl) async {
     if (_sharing) return;
     setState(() => _sharing = true);
+    OverlayEntry? entry;
     try {
       final provider = localOrNetworkImage(photoUrl);
       if (provider != null && mounted) {
         await precacheImage(provider, context);
       }
+      final member = Map<String, dynamic>.from(Get.find<SessionController>().member ?? {});
+      final shareKey = GlobalKey();
+      entry = OverlayEntry(
+        builder: (_) => IgnorePointer(
+          child: Opacity(
+            opacity: 0.01,
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 420,
+                child: Material(
+                  color: Colors.transparent,
+                  child: RepaintBoundary(
+                    key: shareKey,
+                    child: _BothSidesSharePage(member: member),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      Overlay.of(context).insert(entry);
       await WidgetsBinding.instance.endOfFrame;
-      final key = _showingBack ? _backKey : _frontKey;
-      final boundary = key.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      final boundary = shareKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) return;
       final image = await boundary.toImage(pixelRatio: 3);
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -197,11 +222,91 @@ class _MembershipCardOverlayState extends State<MembershipCardOverlay> with Sing
       );
     } catch (e, stack) {
       AppLog.error('Share card image failed', error: e, stack: stack, tag: 'CARD');
-      Get.snackbar('Error', e.toString());
+      flash('Error', e.toString());
     } finally {
+      entry?.remove();
       if (mounted) setState(() => _sharing = false);
     }
   }
+}
+
+class _BothSidesSharePage extends StatelessWidget {
+  const _BothSidesSharePage({required this.member});
+  final Map<String, dynamic> member;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: const Color(0xFFF7F1E8),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 20, 18, 22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _t('party_full_name', 'राष्ट्रीय परिवर्तन दल'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _cardInk,
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              _t('card_title', 'Membership card').toUpperCase(),
+              style: const TextStyle(
+                color: _cardOrange,
+                fontWeight: FontWeight.w800,
+                fontSize: 11,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(height: 16),
+            MembershipCardFace(member: member),
+            const _ShareFoldDottedLine(),
+            MembershipCardBack(member: member),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ShareFoldDottedLine extends StatelessWidget {
+  const _ShareFoldDottedLine();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: SizedBox(
+        height: 10,
+        width: double.infinity,
+        child: CustomPaint(painter: _DottedLinePainter()),
+      ),
+    );
+  }
+}
+
+class _DottedLinePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFF6B6680)
+      ..style = PaintingStyle.fill;
+    const radius = 1.35;
+    const gap = 6.0;
+    final y = size.height / 2;
+    var x = radius;
+    while (x <= size.width - radius) {
+      canvas.drawCircle(Offset(x, y), radius, paint);
+      x += gap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class MembershipCardFace extends StatelessWidget {

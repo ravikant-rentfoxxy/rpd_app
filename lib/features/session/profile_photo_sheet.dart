@@ -10,6 +10,7 @@ import '../../core/utils/api_error.dart';
 import '../../core/utils/app_log.dart';
 import '../../core/widgets/ui.dart';
 import 'session_controller.dart';
+import '../../core/widgets/flash.dart';
 
 void showProfilePhotoSheet({void Function(String path, String url)? onUploaded}) {
   Get.bottomSheet(
@@ -152,6 +153,6 @@ Future<void> _pick(ImageSource source, void Function(String path, String url)? o
     if (url.isNotEmpty) onUploaded?.call(filePath, url);
   } catch (e, stack) {
     AppLog.error('Profile photo upload failed', error: e, stack: stack, tag: 'PHOTO');
-    Get.snackbar('Error', apiErrorMessage(e));
+    flash('Error', apiErrorMessage(e));
   }
 }

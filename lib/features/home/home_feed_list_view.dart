@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/empty_card.dart';
 import '../../data/models/home_feed.dart';
 import '../session/session_controller.dart';
 import 'home_widgets.dart';
@@ -88,11 +89,10 @@ class _UpcomingEventsViewState extends State<UpcomingEventsView> {
         if (events.isEmpty) {
           return Center(
             child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Text(
-                'upcoming_events_empty'.tr,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: HomeColors.muted),
+              padding: const EdgeInsets.all(24),
+              child: AppEmptyCard(
+                icon: Icons.event_outlined,
+                title: 'upcoming_events_empty'.tr,
               ),
             ),
           );

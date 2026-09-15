@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/api_error.dart';
 import '../../core/widgets/ui.dart';
 import '../session/session_controller.dart';
+import '../../core/widgets/flash.dart';
 
 Future<void> showContributeDialog() {
   return Get.dialog(
@@ -40,12 +41,12 @@ class _ContributeDialogState extends State<ContributeDialog> {
     if (save) {
       if (type.value == 'VOLUNTEER') {
         if (volunteerMode.value == null) {
-          Get.snackbar('Error', 'volunteer_mode_required'.tr);
+          flash('Error', 'volunteer_mode_required'.tr);
           return;
         }
         final n = int.tryParse(hours.text.trim());
         if (n == null || n < 3 || n > 40) {
-          Get.snackbar('Error', 'volunteer_hours_invalid'.tr);
+          flash('Error', 'volunteer_hours_invalid'.tr);
           return;
         }
       }
@@ -60,7 +61,7 @@ class _ContributeDialogState extends State<ContributeDialog> {
         });
       } catch (e) {
         submitting.value = false;
-        Get.snackbar('Error', apiErrorMessage(e));
+        flash('Error', apiErrorMessage(e));
         return;
       }
       submitting.value = false;

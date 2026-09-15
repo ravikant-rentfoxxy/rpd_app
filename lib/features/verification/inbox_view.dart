@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/empty_card.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/remote/api_client.dart';
 import '../session/session_controller.dart';
@@ -38,6 +39,18 @@ class VerificationInboxView extends StatelessWidget {
                   const SizedBox(height: 16),
                   PrimaryButton('booth_health'.tr, ghost: true, onTap: Get.back),
                 ],
+              ),
+            ),
+          );
+        }
+        if (items.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: AppEmptyCard(
+                icon: Icons.inbox_outlined,
+                title: 'to_check'.tr,
+                sub: 'notif_empty'.tr,
               ),
             ),
           );

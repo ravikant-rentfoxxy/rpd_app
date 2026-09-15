@@ -16,3 +16,8 @@ Future<Map<String, dynamic>> fetchTasks() async {
   final res = await Get.find<ApiClient>().get('/tasks');
   return Map<String, dynamic>.from(res['data'] as Map? ?? {});
 }
+
+Future<Map<String, dynamic>> startOrgTask(String id) async {
+  final res = await Get.find<ApiClient>().post('/tasks/$id/start');
+  return Map<String, dynamic>.from((res['data'] as Map)['task'] as Map);
+}

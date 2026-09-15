@@ -11,7 +11,7 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Your location is used only to suggest the nearest polling booths.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>The camera is used for your membership photo, posts, and meeting evidence.</string>
+	<string>The camera is used for your membership photo, posts, meeting evidence, and scanning membership cards at check-in.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>The microphone is used when you record an audio or video post.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
@@ -72,6 +72,12 @@
 			</array>
 		</dict>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

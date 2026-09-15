@@ -6,11 +6,13 @@ import '../../features/auth/auth_views.dart';
 import '../../features/booth/booth_health_view.dart';
 import '../../features/card/membership_card_view.dart';
 import '../../features/profile/profile_view.dart';
+import '../../features/profile/profile_overview_view.dart';
 import '../../features/home/home_feed_list_view.dart';
 import '../../features/home/youtube_player_view.dart';
 import '../../data/models/home_feed.dart';
 import '../../features/session/session_controller.dart';
 import '../../features/join/join_views.dart';
+import '../../features/join/profile_basics_view.dart';
 import '../../features/meeting/meeting_views.dart';
 import '../../features/members/members_view.dart';
 import '../../features/settings/api_settings_view.dart';
@@ -25,6 +27,7 @@ import '../../features/verification/member_status_view.dart';
 import '../../features/post/post_views.dart';
 import '../../features/post/post_detail_view.dart';
 import '../../features/post/post_video_view.dart';
+import '../../features/post/grievance_view.dart';
 import '../../features/events/create_event_view.dart';
 import '../../features/events/event_detail_view.dart';
 import '../../features/engagement/engagement_play_view.dart';
@@ -37,18 +40,21 @@ class AppPages {
     GetPage(name: Routes.boot, page: () => const BootView()),
     GetPage(name: Routes.mobile, page: () => const MobileView()),
     GetPage(name: Routes.otp, page: () => const OtpView()),
+    GetPage(name: Routes.profileBasics, page: () => const ProfileBasicsView()),
     GetPage(name: Routes.personal, page: () => const PersonalView()),
     GetPage(name: Routes.boothSelect, page: () => const BoothSelectView()),
     GetPage(name: Routes.boothSearch, page: () => const BoothSearchView()),
     GetPage(name: Routes.consent, page: () => const ConsentView()),
     GetPage(name: Routes.shell, page: () => const ShellView()),
     GetPage(name: Routes.card, page: () => const MembershipCardView()),
-    GetPage(name: Routes.profile, page: () => const ProfileView()),
+    GetPage(name: Routes.profile, page: () => const ProfileOverviewView()),
+    GetPage(name: Routes.profileEdit, page: () => const ProfileView()),
     GetPage(name: Routes.activityHub, page: () => const ActivityHubView()),
     GetPage(name: Routes.activityDetails, page: () => const ActivityDetailsView()),
     GetPage(name: Routes.activityConfirm, page: () => const ActivityConfirmView()),
     GetPage(name: Routes.activitySaved, page: () => const ActivitySavedView()),
     GetPage(name: Routes.activityRejected, page: () => const ActivityRejectedView()),
+    GetPage(name: Routes.members, page: () => const MembersView()),
     GetPage(name: Routes.addMember, page: () => const AddMemberView()),
     GetPage(name: Routes.recruitConsent, page: () => const RecruitConsentView()),
     GetPage(name: Routes.boothHealth, page: () => const BoothHealthView()),
@@ -103,5 +109,6 @@ class AppPages {
     GetPage(name: Routes.createPost, page: () => const CreatePostView()),
     GetPage(name: Routes.postVideo, page: () => const PostVideoPlayerView()),
     GetPage(name: Routes.postDetail, page: () => const PostDetailView()),
+    GetPage(name: Routes.grievance, page: () => const GrievanceView()),
   ];
 }

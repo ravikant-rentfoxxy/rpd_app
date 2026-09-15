@@ -7,6 +7,7 @@ import '../../core/utils/api_error.dart';
 import '../../core/widgets/ui.dart';
 import '../session/session_controller.dart';
 import 'task_api.dart';
+import '../../core/widgets/flash.dart';
 
 const _cream = Color(0xFFFAF6F0);
 const _navy = Color(0xFF1B1340);
@@ -32,7 +33,7 @@ class _CreateTaskViewState extends State<CreateTaskView> {
 
   Future<void> _submit() async {
     if (title.text.trim().length < 2) {
-      Get.snackbar('Error', 'task_name_required'.trFallback('Enter a task name'));
+      flash('Error', 'task_name_required'.trFallback('Enter a task name'));
       return;
     }
     setState(() => submitting = true);
@@ -41,7 +42,7 @@ class _CreateTaskViewState extends State<CreateTaskView> {
       await Get.find<SessionController>().loadHome();
       if (mounted) Get.back();
       Future<void>.delayed(const Duration(milliseconds: 250), () {
-        Get.snackbar(
+        flash(
           'task_created'.trFallback('Task created'),
           'task_created_sub'.trFallback('Members in your region can see this in My tasks.'),
           snackPosition: SnackPosition.BOTTOM,
@@ -52,7 +53,7 @@ class _CreateTaskViewState extends State<CreateTaskView> {
         );
       });
     } catch (e) {
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => submitting = false);
     }

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/api_error.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/local/hive_service.dart';
+import '../join/join_chrome.dart';
 import '../session/session_controller.dart';
+import '../../core/widgets/flash.dart';
 
 class SyncView extends StatelessWidget {
   const SyncView({super.key});
@@ -39,9 +42,21 @@ class SyncView extends StatelessWidget {
               )),
           AppCard(tone: CardTone.ok, child: CardTitle('nothing_lost'.tr, sub: 'These stay on your phone until they upload. You can close the app.')),
           PrimaryButton('try_upload'.tr, ghost: true, onTap: () async {
-            await Get.find<SessionController>().syncPendingPosts();
-            items.assignAll(hive.pendingSync());
-            Get.find<SessionController>().syncCount.value = items.length;
+            final session = Get.find<SessionController>();
+            try {
+              await session.syncPending();
+              items.assignAll(hive.pendingSync());
+              session.syncCount.value = items.length;
+              if (items.isEmpty) {
+                flash('sync_queue'.tr, 'activity_saved'.trFallback('Uploaded'));
+              } else {
+                flash('Error', 'offline_bar'.tr);
+              }
+            } catch (e) {
+              items.assignAll(hive.pendingSync());
+              session.syncCount.value = items.length;
+              flash('Error', apiErrorMessage(e));
+            }
           }),
         ],
       ),

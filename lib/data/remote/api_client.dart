@@ -67,7 +67,7 @@ class ApiClient extends GetxService {
             } catch (_) {}
           }
           final path = error.requestOptions.path;
-          final isAuthCall = path.contains('/auth/refresh') || path.contains('/auth/otp');
+          final isAuthCall = path.contains('/auth/refresh') || path.contains('/auth/otp') || path.contains('/auth/logout');
           final isAuthFailure = _isUnauthorized(error) && !isAuthCall;
           if (signedOut && isAuthFailure) {
             return handler.next(error);
@@ -135,10 +135,12 @@ class ApiClient extends GetxService {
     return code != 'forbidden';
   }
 
-  Future<bool> _refresh() async {
+  Future<bool> refreshAccessToken({bool expireOnFail = true}) => _refresh(expireOnFail: expireOnFail);
+
+  Future<bool> _refresh({bool expireOnFail = true}) async {
     if (signedOut) return false;
     if (_refreshing != null) return _refreshing!;
-    _refreshing = _doRefresh();
+    _refreshing = _doRefresh(expireOnFail: expireOnFail);
     try {
       return await _refreshing!;
     } finally {
@@ -146,7 +148,7 @@ class ApiClient extends GetxService {
     }
   }
 
-  Future<bool> _doRefresh() async {
+  Future<bool> _doRefresh({bool expireOnFail = true}) async {
     final hive = Get.find<HiveService>();
     final refresh = hive.refreshToken;
     if (refresh == null) {
@@ -158,16 +160,28 @@ class ApiClient extends GetxService {
         '/auth/refresh',
         data: {'refreshToken': refresh},
       );
-      final tokens = res.data['data']['tokens'] as Map<String, dynamic>;
-      await hive.saveTokens(
-        access: tokens['accessToken'] as String,
-        refresh: tokens['refreshToken'] as String,
-      );
+      final payload = Map<String, dynamic>.from(res.data['data'] as Map);
+      final tokens = Map<String, dynamic>.from(payload['tokens'] as Map);
+      final access = '${tokens['accessToken'] ?? ''}';
+      final refreshToken = '${tokens['refreshToken'] ?? ''}';
+      if (access.isNotEmpty && refreshToken.isNotEmpty) {
+        await hive.saveTokens(access: access, refresh: refreshToken);
+      }
+      final accessFields = <String, dynamic>{
+        if (payload.containsKey('verified')) 'verified': payload['verified'],
+        if (payload.containsKey('verifyStatus')) 'verifyStatus': payload['verifyStatus'],
+        if (payload.containsKey('post')) 'post': payload['post'],
+      };
+      if (accessFields.isNotEmpty) {
+        await hive.mergeProfile(accessFields);
+      }
       AppLog.info('Access token refreshed', tag: 'API');
       return true;
     } catch (_) {
-      AppLog.warn('Session expired, signing out', tag: 'API');
-      await expireSession();
+      if (expireOnFail) {
+        AppLog.warn('Session expired, signing out', tag: 'API');
+        await expireSession();
+      }
       return false;
     }
   }
@@ -181,8 +195,22 @@ class ApiClient extends GetxService {
       return;
     }
     await Get.find<HiveService>().clearSession();
-    if (Get.currentRoute != Routes.mobile) {
+    if (Get.context != null && Get.currentRoute != Routes.mobile) {
       Get.offAllNamed(Routes.mobile);
+    }
+  }
+
+  Future<void> logoutRemote() async {
+    final token = Get.find<HiveService>().accessToken;
+    if (token == null || token.isEmpty) return;
+    try {
+      await dio.post(
+        '/auth/logout',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+    } catch (e, stack) {
+      if (e is DioException && e.response?.statusCode == 401) return;
+      AppLog.error('logout api failed', error: e, stack: stack, tag: 'API');
     }
   }
 

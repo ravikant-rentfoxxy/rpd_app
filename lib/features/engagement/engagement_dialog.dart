@@ -6,6 +6,7 @@ import '../../core/utils/api_error.dart';
 import '../../core/widgets/ui.dart';
 import '../session/session_controller.dart';
 import 'engagement_api.dart';
+import '../../core/widgets/flash.dart';
 
 Future<void> showEngagementDialog(Map<String, dynamic> event) async {
   if (Get.isDialogOpen == true) return;
@@ -28,7 +29,7 @@ class EngagementInviteDialog extends StatelessWidget {
       if (id.isNotEmpty) await dismissEngagement(id);
       Get.find<SessionController>().clearEngagementPrompt();
     } catch (e) {
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     }
     if (Get.isDialogOpen == true) Get.back();
   }

@@ -7,6 +7,7 @@ import 'core/constants/api.dart';
 import 'core/utils/app_log.dart';
 import 'data/local/hive_service.dart';
 import 'data/remote/api_client.dart';
+import 'core/push/push_service.dart';
 import 'features/session/session_controller.dart';
 
 Future<void> main() async {
@@ -42,5 +43,6 @@ Future<void> main() async {
 
   await Get.putAsync(() => ApiClient().init());
   Get.put(SessionController());
+  await Get.putAsync(() => PushService().init());
   runApp(const RpdApp());
 }

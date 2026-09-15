@@ -108,6 +108,15 @@ class HiveService extends GetxService {
 
   Future<void> saveProfile(Map<String, dynamic> json) => user.put('profile', json);
 
+  Future<void> mergeProfile(Map<String, dynamic> incoming) async {
+    final current = profile ?? {};
+    final next = <String, dynamic>{...current, ...incoming};
+    for (final key in const ['booth', 'card', 'recruitedBy']) {
+      if (incoming[key] == null && current[key] != null) next[key] = current[key];
+    }
+    await saveProfile(next);
+  }
+
   Future<void> upsertBooths(List<Booth> list) async {
     for (final booth in list) {
       await booths.put(booth.id, booth.toJson());
@@ -178,7 +187,9 @@ class HiveService extends GetxService {
   }
 
   Future<void> seedIssuesIfEmpty() async {
-    if (savedIssues().isNotEmpty) return;
+    final stored = savedIssues();
+    final hasChildren = stored.any((issue) => (issue['children'] as List?)?.isNotEmpty == true);
+    if (hasChildren) return;
     await settings.put('post_issues', jsonEncode(fallbackPostIssues));
   }
 

@@ -10,6 +10,7 @@ import '../join/join_chrome.dart';
 import '../session/session_controller.dart';
 import 'event_api.dart';
 import 'join_celebration.dart';
+import '../../core/widgets/flash.dart';
 
 class EventDetailView extends StatefulWidget {
   const EventDetailView({super.key});
@@ -65,7 +66,7 @@ class _EventDetailViewState extends State<EventDetailView> {
       await showJoinCelebration(context);
       setState(() {});
     } catch (e) {
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => joining = false);
     }

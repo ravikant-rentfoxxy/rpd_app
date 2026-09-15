@@ -1,11 +1,12 @@
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'app_log.dart';
+import '../widgets/flash.dart';
 
 Future<void> openExternalUrl(String url, {bool preferExternal = false}) async {
   final uri = Uri.tryParse(url);
   if (uri == null || !uri.hasScheme) {
-    Get.snackbar('Error', 'open_link_failed'.tr);
+    flash('Error', 'open_link_failed'.tr);
     return;
   }
 
@@ -24,5 +25,5 @@ Future<void> openExternalUrl(String url, {bool preferExternal = false}) async {
       AppLog.error('open $url with $mode failed', error: e, stack: stack, tag: 'LINK');
     }
   }
-  Get.snackbar('Error', 'open_link_failed'.tr);
+  flash('Error', 'open_link_failed'.tr);
 }

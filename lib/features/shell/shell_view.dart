@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:rpd_app/features/join/join_chrome.dart';
 import '../../core/theme/app_colors.dart';
 import '../home/home_view.dart';
 import '../session/session_controller.dart';
 import '../work/work_view.dart';
-import '../members/members_view.dart';
+import '../leaderboard/leaderboard_view.dart';
 import '../more/more_view.dart';
 import '../../core/routes/app_routes.dart';
 
@@ -14,7 +15,7 @@ class ShellView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = Get.find<SessionController>();
-    final pages = const [HomeView(), WorkView(), SizedBox(), MembersView(), MoreView()];
+    final pages = const [HomeView(), WorkView(), SizedBox(), LeaderboardView(), MoreView()];
     return Obx(
       () => Scaffold(
         body: pages[session.shellIndex.value],
@@ -36,7 +37,7 @@ class ShellView extends StatelessWidget {
                 _Nav(0, Icons.home_outlined, 'home'.tr, session),
                 _Nav(1, Icons.assignment_outlined, 'work'.tr, session),
                 const SizedBox(width: 56),
-                _Nav(3, Icons.groups_outlined, 'members'.tr, session),
+                _Nav(3, Icons.emoji_events_outlined, 'leaderboard_nav'.trFallback('Rank'), session),
                 _Nav(4, Icons.menu_rounded, 'more'.tr, session),
               ],
             ),
@@ -54,7 +55,7 @@ class ShellView extends StatelessWidget {
             child: InkWell(
               customBorder: const CircleBorder(),
               onTap: () {
-                if (!session.guardVerifiedAccess()) return;
+                if (!session.guardCreatePost()) return;
                 Get.toNamed(Routes.createPost);
               },
               child: const SizedBox(
@@ -80,13 +81,7 @@ class _Nav extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: InkWell(
-        onTap: () {
-          if (i == 1 && session.needsVerification) {
-            session.openJoinVerification();
-            return;
-          }
-          session.shellIndex.value = i;
-        },
+        onTap: () => session.shellIndex.value = i,
         child: Obx(() {
           final on = session.shellIndex.value == i;
           return Column(

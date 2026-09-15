@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/local/hive_service.dart';
 import '../../data/remote/api_client.dart';
+import '../../core/widgets/flash.dart';
 
 class ApiSettingsView extends StatelessWidget {
   const ApiSettingsView({super.key});
@@ -26,7 +27,7 @@ class ApiSettingsView extends StatelessWidget {
             final url = controller.text.trim().replaceAll(RegExp(r'/$'), '');
             final parsed = Uri.tryParse(url);
             if (parsed == null || !parsed.hasScheme || parsed.host.isEmpty) {
-              Get.snackbar('Error', 'Enter a valid URL, e.g. http://127.0.0.1:4000');
+              flash('Error', 'Enter a valid URL, e.g. http://127.0.0.1:4000');
               return;
             }
             dotenv.env['API_BASE_URL'] = url;
@@ -34,7 +35,7 @@ class ApiSettingsView extends StatelessWidget {
             if (Get.isRegistered<ApiClient>()) {
               Get.find<ApiClient>().applyBaseUrl(url);
             }
-            Get.snackbar('OK', ApiConfig.adjustForPlatform(url));
+            flash('OK', ApiConfig.adjustForPlatform(url));
             if (Get.routing.previous.isNotEmpty) {
               Get.back();
             }

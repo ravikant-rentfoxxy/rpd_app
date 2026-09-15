@@ -8,6 +8,7 @@ import '../../core/utils/local_image.dart';
 import '../../core/widgets/language_dropdown.dart';
 import '../../data/models/home_feed.dart';
 import '../session/session_controller.dart';
+import 'home_shimmer.dart';
 import 'home_widgets.dart';
 
 class HomeView extends StatelessWidget {
@@ -16,7 +17,7 @@ class HomeView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = Get.find<SessionController>();
-    if (session.home.value == null) {
+    if (session.home.value == null && !session.homeLoading.value) {
       session.loadHome();
     }
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -26,6 +27,11 @@ class HomeView extends StatelessWidget {
         statusBarBrightness: Brightness.dark,
       ),
       child: Obx(() {
+        final topInset = MediaQuery.paddingOf(context).top;
+        final showShimmer = session.homeLoading.value && session.home.value == null;
+        if (showShimmer) {
+          return HomeShimmer(topInset: topInset);
+        }
         final member = session.member ?? {};
         final home = session.home.value;
         final stats = Map<String, dynamic>.from(home?['stats'] as Map? ?? {});
@@ -43,7 +49,6 @@ class HomeView extends StatelessWidget {
         final boothScore = (stats['boothScore'] ?? booth?['healthScore'] ?? 61) as num;
         final rank = '${stats['mandalRank'] ?? 3}';
         final size = '${stats['mandalSize'] ?? 42}';
-        final topInset = MediaQuery.paddingOf(context).top;
         return ColoredBox(
           color: HomeColors.paper,
           child: RefreshIndicator(
@@ -90,6 +95,8 @@ class HomeView extends StatelessWidget {
                         rank: rank,
                         size: size,
                         score: boothScore,
+                        scope: '${stats['leaderboardScope'] ?? 'assembly'}',
+                        area: '${stats['leaderboardArea'] ?? ''}',
                       ),
                       HomeSectionHeader(
                         title: 'recent_videos'.tr,

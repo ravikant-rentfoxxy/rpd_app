@@ -6,10 +6,13 @@ import '../../core/widgets/language_dropdown.dart';
 import '../../core/utils/api_error.dart';
 import '../../core/utils/app_log.dart';
 import '../../core/utils/dob.dart';
+import '../../core/widgets/empty_card.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/local/hive_service.dart';
 import '../../data/remote/api_client.dart';
+import '../../data/remote/pincode_api.dart';
 import '../session/session_controller.dart';
+import '../../core/widgets/flash.dart';
 
 class MembersListController extends GetxController {
   final data = Rxn<Map<String, dynamic>>();
@@ -69,11 +72,20 @@ class MembersView extends StatelessWidget {
             PrimaryButton(
               'add_member'.tr,
               onTap: () {
-                if (!Get.find<SessionController>().guardVerifiedAccess()) return;
+                if (!Get.find<SessionController>().guardMemberActions()) return;
                 Get.toNamed(Routes.addMember);
               },
             ),
             const SizedBox(height: 8),
+            if (list.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 20, bottom: 12),
+                child: AppEmptyCard(
+                  icon: Icons.person_add_alt_1_outlined,
+                  title: 'members'.tr,
+                  sub: 'members_more_sub'.tr,
+                ),
+              ),
             ...list.map((e) {
               final m = Map<String, dynamic>.from(e as Map);
               final status = m['status'] as String? ?? 'PENDING';
@@ -90,7 +102,6 @@ class MembersView extends StatelessWidget {
                 trailing: Pill(status, tone: tone),
               );
             }),
-            AppCard(tone: CardTone.flat, child: CardTitle('18 not yet at 90 days', sub: 'Points for these arrive as each one completes three months.')),
           ],
         );
       }),
@@ -115,7 +126,7 @@ class AddMemberView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!Get.find<SessionController>().guardVerifiedAccess()) {
+    if (!Get.find<SessionController>().guardMemberActions()) {
       return Scaffold(appBar: AppBar(title: Text('add_member'.tr)), body: const SizedBox.shrink());
     }
     final mobile = TextEditingController();
@@ -158,7 +169,7 @@ class AddMemberView extends StatelessWidget {
               }
             } catch (err, stack) {
               AppLog.error('Member check failed', error: err, stack: stack, tag: 'MEMBERS');
-              Get.snackbar('Error', err.toString());
+              flash('Error', err.toString());
             }
           }),
         ],
@@ -167,76 +178,174 @@ class AddMemberView extends StatelessWidget {
   }
 }
 
-class RecruitConsentView extends StatelessWidget {
+class RecruitConsentView extends StatefulWidget {
   const RecruitConsentView({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  State<RecruitConsentView> createState() => _RecruitConsentViewState();
+}
+
+class _RecruitConsentViewState extends State<RecruitConsentView> {
+  final agreed = false.obs;
+  final submitting = false.obs;
+  final formTick = 0.obs;
+  final gender = 'MALE'.obs;
+  final states = <SearchOption>[].obs;
+  final stateId = RxnString();
+  final loadingStates = false.obs;
+  final lookingUpPin = false.obs;
+  var _pinLookup = 0;
+  final name = TextEditingController();
+  final dob = TextEditingController();
+  final pincode = TextEditingController();
+  final otp = TextEditingController();
+
+  late final String mobile;
+  late final SessionController session;
+  late final HiveService hive;
+
+  @override
+  void initState() {
+    super.initState();
+    session = Get.find<SessionController>();
+    hive = Get.find<HiveService>();
     final args = Get.arguments;
     final rawMobile = args is Map ? args['mobile'] : args;
-    final mobile = (rawMobile as String? ?? '').replaceAll(RegExp(r'\D'), '');
-    final session = Get.find<SessionController>();
-    final hive = Get.find<HiveService>();
-    final agreed = false.obs;
-    final submitting = false.obs;
-    final formTick = 0.obs;
-    final gender = 'MALE'.obs;
-    final name = TextEditingController();
-    final dob = TextEditingController();
-    final otp = TextEditingController();
+    mobile = (rawMobile as String? ?? '').replaceAll(RegExp(r'\D'), '');
+    _loadStates();
+  }
 
-    void tick() => formTick.value++;
+  @override
+  void dispose() {
+    name.dispose();
+    dob.dispose();
+    pincode.dispose();
+    otp.dispose();
+    super.dispose();
+  }
 
-    String? recruiterBoothId() {
-      final direct = session.member?['boothId'];
-      if (direct is String && direct.isNotEmpty) return direct;
-      final nested = (session.member?['booth'] as Map?)?['id'];
-      if (nested is String && nested.isNotEmpty) return nested;
-      return null;
+  void tick() => formTick.value++;
+
+  Future<void> _loadStates() async {
+    loadingStates.value = true;
+    try {
+      final res = await Get.find<ApiClient>().get('/geo/states');
+      final data = res['data'] is Map ? Map<String, dynamic>.from(res['data'] as Map) : res;
+      states.assignAll(
+        ((data['states'] as List?) ?? [])
+            .whereType<Map>()
+            .map((e) => SearchOption(id: '${e['id']}', name: '${e['name'] ?? ''}'))
+            .where((e) => e.id.isNotEmpty && e.name.isNotEmpty)
+            .toList(),
+      );
+      if (stateId.value != null && !states.any((s) => s.id == stateId.value)) {
+        stateId.value = null;
+      }
+    } catch (e, stack) {
+      AppLog.error('Recruit loadStates failed', error: e, stack: stack, tag: 'MEMBERS');
+    } finally {
+      loadingStates.value = false;
     }
+  }
 
-    Future<void> submit() async {
-      if (mobile.length != 10) {
-        Get.snackbar('Error', 'mobile_number'.tr);
+  Future<void> _lookupStateFromPincode(String value) async {
+    final pin = value.trim();
+    final token = ++_pinLookup;
+    if (pin.length != 6) return;
+    lookingUpPin.value = true;
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      if (token != _pinLookup || !mounted) return;
+      final hit = await lookupPincode(pin);
+      if (token != _pinLookup || !mounted) return;
+      final id = pincodeStateId(hit);
+      final name = pincodeStateName(hit);
+      if (id == null) {
+        flash('Error', name.isEmpty ? 'pincode_invalid'.tr : 'pincode_state_unknown'.trParams({'state': name}));
         return;
       }
-      final fullName = name.text.trim();
-      final dobValue = dobToIso(dob.text);
-      if (fullName.length < 2 || !isValidDob(dobValue)) {
-        Get.snackbar('Error', !isValidDob(dobValue) ? 'dob_invalid'.tr : 'complete_steps'.tr);
-        return;
+      if (!states.any((s) => s.id == id) && name.isNotEmpty) {
+        states.add(SearchOption(id: id, name: name));
       }
-      submitting.value = true;
-      try {
-        final boothId = recruiterBoothId();
-        final payload = await session.recruitMember({
-          'mobile': mobile,
-          'fullName': fullName,
-          'dateOfBirth': dobValue,
-          'gender': gender.value,
-          ?'boothId': boothId,
-          'locale': switch (hive.locale) {
-            'en' => 'EN',
-            'bho' => 'BHO',
-            _ => 'HI',
-          },
-          'requiredConsentVersion': '2026.08',
-          'whatsappOptIn': false,
-        });
-        if (Get.isRegistered<MembersListController>()) {
-          Get.find<MembersListController>().apply(payload);
-        }
-        session.shellIndex.value = 3;
-        Get.until((route) => route.settings.name == Routes.shell);
-        Get.snackbar('member_added'.tr, fullName);
-      } catch (err, stack) {
-        AppLog.error('Recruit member failed', error: err, stack: stack, tag: 'MEMBERS');
-        Get.snackbar('Error', apiErrorMessage(err));
-      } finally {
-        submitting.value = false;
+      if (states.any((s) => s.id == id)) {
+        stateId.value = id;
+        tick();
       }
+    } catch (e, stack) {
+      if (token != _pinLookup) return;
+      AppLog.error('Recruit pincode lookup failed', error: e, stack: stack, tag: 'MEMBERS');
+      flash('Error', apiErrorMessage(e));
+    } finally {
+      if (token == _pinLookup) lookingUpPin.value = false;
     }
+  }
 
+  String? recruiterBoothId() {
+    final direct = session.member?['boothId'];
+    if (direct is String && direct.isNotEmpty) return direct;
+    final nested = (session.member?['booth'] as Map?)?['id'];
+    if (nested is String && nested.isNotEmpty) return nested;
+    return null;
+  }
+
+  Future<void> submit() async {
+    if (mobile.length != 10) {
+      flash('Error', 'mobile_number'.tr);
+      return;
+    }
+    final fullName = name.text.trim();
+    final dobValue = dobToIso(dob.text);
+    final pin = pincode.text.trim();
+    if (fullName.length < 2 || !isValidDob(dobValue)) {
+      flash('Error', !isValidDob(dobValue) ? 'dob_invalid'.tr : 'complete_steps'.tr);
+      return;
+    }
+    if (!RegExp(r'^\d{6}$').hasMatch(pin)) {
+      flash('Error', 'pincode_invalid'.tr);
+      return;
+    }
+    if (stateId.value == null) {
+      flash('Error', 'select_state'.tr);
+      return;
+    }
+    submitting.value = true;
+    try {
+      final boothId = recruiterBoothId();
+      final payload = await session.recruitMember({
+        'mobile': mobile,
+        'fullName': fullName,
+        'dateOfBirth': dobValue,
+        'gender': gender.value,
+        'pincode': pin,
+        'stateId': stateId.value,
+        if (boothId != null) 'boothId': boothId,
+        'locale': switch (hive.locale) {
+          'en' => 'EN',
+          'bho' => 'BHO',
+          _ => 'HI',
+        },
+        'requiredConsentVersion': '2026.08',
+        'whatsappOptIn': false,
+      });
+      if (Get.isRegistered<MembersListController>()) {
+        Get.find<MembersListController>().apply(payload);
+      }
+      Get.offNamedUntil(Routes.members, (route) => route.settings.name == Routes.shell);
+      final points = payload['pointsAwarded'];
+      flash(
+        'member_added'.tr,
+        points is num && points > 0 ? 'member_added_points'.tr : fullName,
+      );
+    } catch (err, stack) {
+      AppLog.error('Recruit member failed', error: err, stack: stack, tag: 'MEMBERS');
+      flash('Error', apiErrorMessage(err));
+    } finally {
+      submitting.value = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('add_member'.tr)),
       body: ListView(
@@ -245,7 +354,7 @@ class RecruitConsentView extends StatelessWidget {
         children: [
           const StepBar(total: 2, current: 2),
           AppCard(tone: CardTone.brand, child: CardTitle('hand_phone'.tr, sub: 'must_agree'.tr)),
-          AppField(label: 'full_name'.tr, controller: name, hint: 'enter_name'.tr, onChanged: (_) => tick()),
+          AppField(label: '${'full_name'.tr} *', controller: name, hint: 'enter_name'.tr, onChanged: (_) => tick()),
           GestureDetector(
             onTap: () async {
               final now = DateTime.now();
@@ -261,6 +370,36 @@ class RecruitConsentView extends StatelessWidget {
             },
             child: AbsorbPointer(
               child: AppField(label: '${'dob'.tr} *', controller: dob, hint: 'dob_hint'.tr, keyboard: TextInputType.none),
+            ),
+          ),
+          AppField(
+            label: '${'pincode'.tr} *',
+            controller: pincode,
+            hint: 'pincode_hint'.tr,
+            icon: Icons.credit_card_outlined,
+            keyboard: TextInputType.number,
+            digitsOnly: true,
+            maxLength: 6,
+            onChanged: (value) {
+              tick();
+              _lookupStateFromPincode(value);
+            },
+          ),
+          Obx(
+            () => AppSearchSelect(
+              label: '${'state'.tr} *',
+              hint: 'select_state'.tr,
+              searchHint: 'search_state'.tr,
+              emptyHint: 'no_matches'.tr,
+              icon: Icons.map_outlined,
+              value: states.any((s) => s.id == stateId.value) ? stateId.value : null,
+              options: states.toList(),
+              loading: loadingStates.value || lookingUpPin.value,
+              enabled: false,
+              onChanged: (id) {
+                stateId.value = id;
+                tick();
+              },
             ),
           ),
           Obx(
@@ -306,6 +445,8 @@ class RecruitConsentView extends StatelessWidget {
                 otp.text.length == 6 &&
                 name.text.trim().length >= 2 &&
                 isValidDob(dob.text) &&
+                RegExp(r'^\d{6}$').hasMatch(pincode.text.trim()) &&
+                stateId.value != null &&
                 !submitting.value;
             return PrimaryButton(
               submitting.value ? '…' : 'submit_app'.tr,

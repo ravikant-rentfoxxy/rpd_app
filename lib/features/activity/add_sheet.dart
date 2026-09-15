@@ -60,12 +60,14 @@ List<ActivityAction> activityActions() => [
     ];
 
 void openActivityAction(ActivityAction action, {BuildContext? sheetContext}) {
-  if (!Get.find<SessionController>().guardVerifiedAccess()) return;
-  if (sheetContext != null) Navigator.pop(sheetContext);
   if (action.type == 'ADD_MEMBER') {
+    if (!Get.find<SessionController>().guardMemberActions()) return;
+    if (sheetContext != null) Navigator.pop(sheetContext);
     Get.toNamed(Routes.addMember);
     return;
   }
+  if (!Get.find<SessionController>().guardVerifiedAccess()) return;
+  if (sheetContext != null) Navigator.pop(sheetContext);
   const eventTypes = {'MEETING', 'GRIHA_SAMPARK', 'PUBLIC_PROGRAMME', 'TRAINING'};
   if (eventTypes.contains(action.type) && Get.find<SessionController>().canCreateOrgEvents) {
     Get.toNamed(Routes.createEvent, arguments: action.type);
@@ -138,7 +140,7 @@ class AddSheet extends StatelessWidget {
             const SizedBox(height: 12),
             CreatePostEntry(
               onTap: () {
-                if (!Get.find<SessionController>().guardVerifiedAccess()) return;
+                if (!Get.find<SessionController>().guardCreatePost()) return;
                 Navigator.pop(context);
                 Get.toNamed(Routes.createPost);
               },

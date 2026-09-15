@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/utils/app_log.dart';
+import '../../core/widgets/empty_card.dart';
 import '../../core/widgets/ui.dart';
+import '../../core/widgets/flash.dart';
 
 class ErrorLogView extends StatelessWidget {
   const ErrorLogView({super.key});
@@ -18,7 +19,7 @@ class ErrorLogView extends StatelessWidget {
             onPressed: () {
               final text = AppLog.entries.map((e) => e.detail).join('\n---\n');
               Clipboard.setData(ClipboardData(text: text));
-              Get.snackbar('OK', 'Copied');
+              flash('OK', 'Copied');
             },
             child: const Text('Copy'),
           ),
@@ -27,7 +28,12 @@ class ErrorLogView extends StatelessWidget {
       ),
       body: Obx(() {
         if (AppLog.entries.isEmpty) {
-          return const Center(child: Text('No logs yet', style: TextStyle(color: AppColors.ink3)));
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: AppEmptyCard(icon: Icons.notes_rounded, title: 'No logs yet'),
+            ),
+          );
         }
         return ListView.builder(
           padding: const EdgeInsets.all(16),

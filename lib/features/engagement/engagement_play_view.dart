@@ -6,6 +6,7 @@ import '../../core/utils/api_error.dart';
 import '../../core/widgets/ui.dart';
 import '../session/session_controller.dart';
 import 'engagement_api.dart';
+import '../../core/widgets/flash.dart';
 
 class EngagementPlayView extends StatefulWidget {
   const EngagementPlayView({super.key});
@@ -52,7 +53,7 @@ class _EngagementPlayViewState extends State<EngagementPlayView> {
       }
       if (mounted) setState(() => event = fresh);
     } catch (e) {
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -61,7 +62,7 @@ class _EngagementPlayViewState extends State<EngagementPlayView> {
   Future<void> _submit() async {
     final questions = (event['questions'] as List? ?? []).whereType<Map>().toList();
     if (answers.length < questions.length) {
-      Get.snackbar('Error', 'engagement_answer_all'.tr);
+      flash('Error', 'engagement_answer_all'.tr);
       return;
     }
     setState(() => submitting = true);
@@ -77,7 +78,7 @@ class _EngagementPlayViewState extends State<EngagementPlayView> {
         if (data['event'] is Map) event = Map<String, dynamic>.from(data['event'] as Map);
       });
     } catch (e) {
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => submitting = false);
     }

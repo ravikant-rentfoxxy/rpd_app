@@ -597,10 +597,33 @@ class _StatCard extends StatelessWidget {
 }
 
 class HomeLeaderboard extends StatelessWidget {
-  const HomeLeaderboard({super.key, required this.rank, required this.size, required this.score});
+  const HomeLeaderboard({
+    super.key,
+    required this.rank,
+    required this.size,
+    required this.score,
+    this.scope = 'assembly',
+    this.area = '',
+  });
   final String rank;
   final String size;
   final num score;
+  final String scope;
+  final String area;
+
+  String get _title {
+    if (area.trim().isNotEmpty) {
+      return 'leaderboard_area_title'.trParams({'area': area.trim()});
+    }
+    switch (scope) {
+      case 'district':
+        return 'leaderboard_district'.trFallback('District');
+      case 'state':
+        return 'leaderboard_state'.trFallback('State');
+      default:
+        return 'leaderboard_ac'.trFallback('AC');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -617,7 +640,7 @@ class HomeLeaderboard extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('mandal_leaderboard'.tr, style: const TextStyle(fontSize: 12, color: HomeColors.navyMuted)),
+                Text(_title, style: const TextStyle(fontSize: 12, color: HomeColors.navyMuted)),
                 const SizedBox(height: 4),
                 Text('rank_of'.trParams({'rank': rank, 'size': size}), style: homeTitleStyle(size: 21, color: Colors.white)),
                 const SizedBox(height: 12),

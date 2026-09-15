@@ -1,27 +1,135 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import '../../core/constants/org_hierarchy.dart';
 import '../../core/constants/post_issues.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/api_error.dart';
+import '../../core/utils/app_log.dart';
 import '../../core/utils/local_image.dart';
 import '../../core/utils/relative_time.dart';
 import '../join/join_chrome.dart';
+import '../session/session_controller.dart';
+import 'post_api.dart';
+import 'post_assign_sheet.dart';
 import 'post_media.dart';
+import 'post_summary_sheet.dart';
 import 'post_views.dart';
+import 'summary_loading.dart';
+import '../../core/widgets/flash.dart';
 
-class PostDetailView extends StatelessWidget {
+class PostDetailView extends StatefulWidget {
   const PostDetailView({super.key});
 
-  Map<String, dynamic> get post {
+  @override
+  State<PostDetailView> createState() => _PostDetailViewState();
+}
+
+class _PostDetailViewState extends State<PostDetailView> {
+  late Map<String, dynamic> data;
+  var assigning = false;
+  var resolving = false;
+  var summarising = false;
+
+  @override
+  void initState() {
+    super.initState();
     final raw = Get.arguments;
-    if (raw is Map) return Map<String, dynamic>.from(raw);
-    return {};
+    data = raw is Map ? Map<String, dynamic>.from(raw) : {};
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    if (data['pending'] == true) return;
+    try {
+      final updated = await fetchRegionPost(data);
+      if (!mounted) return;
+      setState(() => data = updated);
+      Get.find<SessionController>().upsertRegionPost(updated);
+    } catch (e, stack) {
+      AppLog.error('Load post detail failed', error: e, stack: stack, tag: 'POST');
+    }
+  }
+
+  String get _authorName => '${data['authorName'] ?? ''}'.trim();
+  String get _authorMobile => '${data['authorMobile'] ?? ''}'.trim();
+  String get _assigneeName => '${data['assigneeName'] ?? ''}'.trim();
+  String get _assigneePost {
+    final code = '${data['assigneePost'] ?? ''}'.trim();
+    final fallback = '${data['assigneePostLabel'] ?? ''}'.trim();
+    if (code.isEmpty) return fallback;
+    return postLabelKey(code).trFallback(fallback.isEmpty ? code.replaceAll('_', ' ') : fallback);
+  }
+
+  Future<void> _assign() async {
+    if (assigning) return;
+    setState(() => assigning = true);
+    try {
+      final members = await fetchPostAssignees(data);
+      if (!mounted) return;
+      final picked = await showPostAssignSheet(
+        context: context,
+        members: members,
+        selectedId: '${data['assignedToId'] ?? ''}',
+      );
+      if (picked == null || picked.isEmpty) return;
+      final updated = await assignRegionPost(data, picked);
+      if (!mounted) return;
+      setState(() => data = updated);
+      Get.find<SessionController>().upsertRegionPost(updated);
+      flash('assign_issue_done'.trFallback('Assigned'), '${updated['assigneeName'] ?? ''}');
+    } catch (e, stack) {
+      AppLog.error('Assign post failed', error: e, stack: stack, tag: 'POST');
+      flash('Error', apiErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => assigning = false);
+    }
+  }
+
+  Future<void> _setStatus(String status) async {
+    if (resolving) return;
+    setState(() => resolving = true);
+    try {
+      final updated = await resolveRegionPost(data, status);
+      if (!mounted) return;
+      setState(() => data = updated);
+      Get.find<SessionController>().upsertRegionPost(updated);
+      flash(
+        status == 'RESOLVED'
+            ? 'resolve_done'.trFallback('Marked as resolved')
+            : 'resolve_reopened'.trFallback('Reopened'),
+        '',
+      );
+    } catch (e, stack) {
+      AppLog.error('Resolve post failed', error: e, stack: stack, tag: 'POST');
+      flash('Error', apiErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => resolving = false);
+    }
+  }
+
+  Future<void> _summarise() async {
+    if (summarising || data['pending'] == true) return;
+    setState(() => summarising = true);
+    try {
+      final summary = await runWithSummaryLoading(context, () => summariseRegionPost(data));
+      if (!mounted) return;
+      if (summary.isEmpty) {
+        flash('Error', 'summary_empty'.trFallback('Could not create a summary'));
+        return;
+      }
+      await showPostSummarySheet(context: context, summary: summary);
+    } catch (e, stack) {
+      AppLog.error('Summarise post failed', error: e, stack: stack, tag: 'POST');
+      flash('Error', apiErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => summarising = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final data = post;
     final type = '${data['mediaType'] ?? 'image'}'.toLowerCase();
     final raw = data['mediaUrl'] ?? data['mediaPath'] ?? data['photoPath'] ?? data['mediaKey'];
     final path = switch (type) {
@@ -34,12 +142,21 @@ class PostDetailView extends StatelessWidget {
     final issue = issueLabelOf(data);
     final region = '${data['regionLabel'] ?? ''}'.trim();
     final pending = data['pending'] == true;
+    final canAssign = data['canAssign'] == true;
+    final canSummarise = data['canSummarise'] == true;
+    final showResolve = data['showResolve'] == true;
+    final canResolve = data['canResolve'] == true;
+    final resolved = '${data['status'] ?? ''}'.toUpperCase() == 'RESOLVED';
+    final resolver = '${data['resolvedByName'] ?? ''}'.trim();
     return Scaffold(
       backgroundColor: HomeColors.paper,
       appBar: AppBar(
         backgroundColor: HomeColors.navy,
         foregroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         title: Text('post_details'.trFallback('Post')),
         systemOverlayStyle: const SystemUiOverlayStyle(
           statusBarColor: HomeColors.navy,
@@ -86,14 +203,187 @@ class PostDetailView extends StatelessWidget {
                         ].join(' · '),
                         style: const TextStyle(fontSize: 13, color: HomeColors.muted),
                       ),
+                      if (_authorName.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        _MetaBlock(
+                          title: 'posted_by'.trFallback('Posted by'),
+                          name: _authorName,
+                          detail: _authorMobile,
+                        ),
+                      ],
+                      if (_assigneeName.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        _MetaBlock(
+                          title: 'assigned_to'.trFallback('Assigned to'),
+                          name: _assigneeName,
+                          detail: _assigneePost,
+                        ),
+                      ],
+                      if (canSummarise) ...[
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: OutlinedButton.icon(
+                            onPressed: summarising ? null : _summarise,
+                            icon: summarising
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2.2, color: HomeColors.orange),
+                                  )
+                                : const Icon(Icons.auto_awesome_rounded, size: 18),
+                            label: Text(
+                              'get_summary'.trFallback('Draft for X'),
+                              style: const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: HomeColors.orange,
+                              side: const BorderSide(color: HomeColors.orange),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (canAssign) ...[
+                        SizedBox(height: canSummarise ? 10 : 18),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: FilledButton(
+                            onPressed: assigning ? null : _assign,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: HomeColors.orange,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                            ),
+                            child: assigning
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                                  )
+                                : Text(
+                                    _assigneeName.isEmpty
+                                        ? 'assign_issue'.trFallback('Assign to resolve')
+                                        : 'assign_issue_change'.trFallback('Change assignee'),
+                                    style: const TextStyle(fontWeight: FontWeight.w800),
+                                  ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ],
             ),
           ),
+          if (showResolve) ...[
+            const SizedBox(height: 12),
+            Material(
+              color: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: HomeColors.border, width: 0.5),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'resolve_section'.trFallback('Resolve'),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: HomeColors.ink),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: resolved ? HomeColors.tealWash : HomeColors.peach2,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            resolved
+                                ? 'resolve_resolved'.trFallback('Resolved')
+                                : 'resolve_open'.trFallback('Open'),
+                            style: TextStyle(
+                              color: resolved ? HomeColors.teal : HomeColors.orangeDark,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        if (resolved && resolver.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${'resolve_by'.trFallback('Resolved by')} $resolver',
+                              style: const TextStyle(fontSize: 13, color: HomeColors.muted),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (canResolve) ...[
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: FilledButton(
+                          onPressed: resolving ? null : () => _setStatus(resolved ? 'OPEN' : 'RESOLVED'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: resolved ? HomeColors.navy : HomeColors.teal,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                          ),
+                          child: resolving
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                                )
+                              : Text(
+                                  resolved
+                                      ? 'resolve_reopen'.trFallback('Reopen')
+                                      : 'resolve_mark'.trFallback('Mark as resolved'),
+                                  style: const TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _MetaBlock extends StatelessWidget {
+  const _MetaBlock({required this.title, required this.name, this.detail});
+  final String title;
+  final String name;
+  final String? detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final extra = '${detail ?? ''}'.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: HomeColors.muted)),
+        const SizedBox(height: 4),
+        Text(name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: HomeColors.ink)),
+        if (extra.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(extra, style: const TextStyle(fontSize: 13, color: HomeColors.ink)),
+        ],
+      ],
     );
   }
 }

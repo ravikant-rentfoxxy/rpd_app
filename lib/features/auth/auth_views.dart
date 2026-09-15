@@ -8,6 +8,7 @@ import '../../core/widgets/language_dropdown.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/local/hive_service.dart';
 import '../session/session_controller.dart';
+import '../../core/widgets/flash.dart';
 
 class MobileView extends StatefulWidget {
   const MobileView({super.key});
@@ -30,7 +31,7 @@ class _MobileViewState extends State<MobileView> {
   Future<void> _sendOtp() async {
     final number = mobile.text.replaceAll(RegExp(r'\D'), '');
     if (!RegExp(r'^[6-9]\d{9}$').hasMatch(number)) {
-      Get.snackbar('Error', 'Enter a 10-digit Indian mobile number');
+      flash('Error', 'Enter a 10-digit Indian mobile number');
       return;
     }
     FocusManager.instance.primaryFocus?.unfocus();
@@ -42,7 +43,7 @@ class _MobileViewState extends State<MobileView> {
       if (mounted) locked.value = false;
     } catch (e, stack) {
       AppLog.error('OTP request failed', error: e, stack: stack, tag: 'AUTH');
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
       locked.value = false;
     } finally {
       loading.value = false;
@@ -76,15 +77,18 @@ class _MobileViewState extends State<MobileView> {
                   const SizedBox(height: 6),
                   Text('mobile_help'.tr, style: TextStyle(color: Colors.white.withValues(alpha: 0.78), fontSize: 13)),
                   const SizedBox(height: 16),
+                  Text(
+                    'mobile_number'.tr,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.78),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   Obx(
-                    () => AppField(
-                      label: 'mobile_number'.tr,
+                    () => LoginMobileField(
                       controller: mobile,
-                      keyboard: TextInputType.phone,
-                      mono: true,
-                      prefix: '+91  ',
-                      maxLength: 10,
-                      hint: '98•••• ••••',
                       readOnly: locked.value,
                     ),
                   ),
@@ -183,7 +187,7 @@ class _OtpViewState extends State<OtpView> {
       await Get.find<SessionController>().verifyOtp(mobile, otp);
     } catch (e, stack) {
       AppLog.error('OTP verify failed', error: e, stack: stack, tag: 'AUTH');
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     } finally {
       loading.value = false;
     }

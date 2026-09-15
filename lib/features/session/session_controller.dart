@@ -27,6 +27,7 @@ class SessionController extends GetxController {
 
   final profile = Rxn<Map<String, dynamic>>();
   final home = Rxn<Map<String, dynamic>>();
+  final homeLoading = false.obs;
   final nearbyBooths = <Booth>[].obs;
   final boothsLoading = false.obs;
   final locationDenied = false.obs;
@@ -244,27 +245,32 @@ class SessionController extends GetxController {
 
   Future<void> loadHome() async {
     if (!hasSession) return;
-    await refreshMe();
-    if (!hasSession) return;
+    homeLoading.value = true;
     try {
-      final res = await api.get('/home');
-      home.value = Map<String, dynamic>.from(res['data'] as Map);
-    } catch (e, stack) {
-      if (!api.signedOut) {
-        AppLog.error('loadHome failed', error: e, stack: stack, tag: 'HOME');
+      await refreshMe();
+      if (!hasSession) return;
+      try {
+        final res = await api.get('/home');
+        home.value = Map<String, dynamic>.from(res['data'] as Map);
+      } catch (e, stack) {
+        if (!api.signedOut) {
+          AppLog.error('loadHome failed', error: e, stack: stack, tag: 'HOME');
+        }
       }
+      if (!hasSession) return;
+      await refreshUnreadNotifications();
+      final stamp = '${home.value?['issuesTimestamp'] ?? ''}'.trim();
+      if (!hive.issuesMatchServer(stamp.isEmpty ? null : stamp)) {
+        await syncPostIssues(force: true, serverTimestamp: stamp.isEmpty ? null : stamp);
+      }
+      await syncPendingPosts();
+      await syncPendingActivities();
+      await refreshRegionPosts();
+      promptActivityEvent();
+      promptEngagement();
+    } finally {
+      homeLoading.value = false;
     }
-    if (!hasSession) return;
-    await refreshUnreadNotifications();
-    final stamp = '${home.value?['issuesTimestamp'] ?? ''}'.trim();
-    if (!hive.issuesMatchServer(stamp.isEmpty ? null : stamp)) {
-      await syncPostIssues(force: true, serverTimestamp: stamp.isEmpty ? null : stamp);
-    }
-    await syncPendingPosts();
-    await syncPendingActivities();
-    await refreshRegionPosts();
-    promptActivityEvent();
-    promptEngagement();
   }
 
   Future<void> refreshUnreadNotifications() async {
@@ -634,6 +640,7 @@ class SessionController extends GetxController {
     await hive.clearSession();
     profile.value = null;
     home.value = null;
+    homeLoading.value = false;
     unreadNotifications.value = 0;
     regionPosts.clear();
     _engagementShown = false;

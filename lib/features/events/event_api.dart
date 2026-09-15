@@ -5,6 +5,11 @@ import 'package:get/get.dart' hide FormData, MultipartFile;
 import 'package:http_parser/http_parser.dart';
 import '../../data/remote/api_client.dart';
 
+Future<Map<String, dynamic>> verifyPlace(String address) async {
+  final res = await Get.find<ApiClient>().get('/geo/geocode', query: {'q': address.trim()});
+  return Map<String, dynamic>.from(res['data'] as Map);
+}
+
 Future<Map<String, dynamic>> createOrgEvent({
   required String type,
   required String title,

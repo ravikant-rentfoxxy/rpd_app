@@ -15,6 +15,7 @@ import '../../core/widgets/ui.dart';
 import '../../data/local/hive_service.dart';
 import '../../data/remote/api_client.dart';
 import '../session/session_controller.dart';
+import '../../core/widgets/flash.dart';
 
 class ActivityCaptureController extends GetxController {
   ActivityCaptureController(this.type);
@@ -57,7 +58,7 @@ class ActivityCaptureController extends GetxController {
       capturedAt.value = DateTime.now();
     } catch (e, stack) {
       AppLog.error('Activity photo failed', error: e, stack: stack, tag: 'ACTIVITY');
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     }
   }
 
@@ -67,11 +68,11 @@ class ActivityCaptureController extends GetxController {
 
   Future<void> submit() async {
     if (photoPath.value == null) {
-      Get.snackbar('Error', 'photo_required_activity'.tr);
+      flash('Error', 'photo_required_activity'.tr);
       return;
     }
     if (place.text.trim().length < 2) {
-      Get.snackbar('Error', 'place_name_required'.tr);
+      flash('Error', 'place_name_required'.tr);
       return;
     }
     submitting.value = true;
@@ -101,27 +102,26 @@ class ActivityCaptureController extends GetxController {
       await hive.saveActivityRow(row);
       await hive.enqueueSync(row);
       session.syncCount.value = hive.pendingSync().length;
-      if (boothId != null) {
-        try {
-          await Get.find<ApiClient>().post('/activities', data: {
-            'clientUuid': id,
-            'type': type,
-            'boothId': boothId,
-            'occurredAt': capturedAt.value.toUtc().toIso8601String(),
-            'notes': place.text.trim(),
-            if (session.lat.value != null) 'latitude': session.lat.value,
-            if (session.lng.value != null) 'longitude': session.lng.value,
-          });
-          await hive.removeSync(id);
-          session.syncCount.value = hive.pendingSync().length;
-        } catch (e, stack) {
-          AppLog.error('Activity upload failed, kept in sync queue', error: e, stack: stack, tag: 'ACTIVITY');
-        }
+      try {
+        await Get.find<ApiClient>().post('/activities', data: {
+          'clientUuid': id,
+          'type': type,
+          if (boothId != null) 'boothId': boothId,
+          'occurredAt': capturedAt.value.toUtc().toIso8601String(),
+          'notes': place.text.trim(),
+          if (session.lat.value != null) 'latitude': session.lat.value,
+          if (session.lng.value != null) 'longitude': session.lng.value,
+        });
+        await hive.removeSync(id);
+        session.syncCount.value = hive.pendingSync().length;
+      } catch (e, stack) {
+        AppLog.error('Activity upload failed, kept in sync queue', error: e, stack: stack, tag: 'ACTIVITY');
+        flash('Error', apiErrorMessage(e));
       }
       await session.loadHome();
       Get.offNamed(Routes.activitySaved);
       Future<void>.delayed(const Duration(milliseconds: 250), () {
-        Get.snackbar(
+        flash(
           'activity_saved'.tr,
           'activity_saved_sub'.tr,
           snackPosition: SnackPosition.BOTTOM,
@@ -133,7 +133,7 @@ class ActivityCaptureController extends GetxController {
       });
     } catch (e, stack) {
       AppLog.error('Activity save failed', error: e, stack: stack, tag: 'ACTIVITY');
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     } finally {
       submitting.value = false;
     }
@@ -443,23 +443,22 @@ class ActivityConfirmView extends StatelessWidget {
             session.syncCount.value = hive.pendingSync().length;
             try {
               final boothId = booth?['id'] ?? hive.draft.get('boothId');
-              if (boothId != null) {
-                await Get.find<ApiClient>().post('/activities', data: {
-                  'clientUuid': id,
-                  'type': args['type'] ?? 'MEETING',
-                  'boothId': boothId,
-                  'occurredAt': DateTime.now().toUtc().toIso8601String(),
-                  'notes': args['notes'],
-                  'latitude': session.lat.value ?? 28.6692,
-                  'longitude': session.lng.value ?? 77.4538,
-                  'attendeeNames': ['Guest 1', 'Guest 2'],
-                });
-                await session.loadHome();
-                await hive.removeSync(id);
-                session.syncCount.value = hive.pendingSync().length;
-              }
+              await Get.find<ApiClient>().post('/activities', data: {
+                'clientUuid': id,
+                'type': args['type'] ?? 'MEETING',
+                if (boothId != null) 'boothId': boothId,
+                'occurredAt': DateTime.now().toUtc().toIso8601String(),
+                'notes': args['notes'],
+                if (session.lat.value != null) 'latitude': session.lat.value,
+                if (session.lng.value != null) 'longitude': session.lng.value,
+                'attendeeNames': ['Guest 1', 'Guest 2'],
+              });
+              await session.loadHome();
+              await hive.removeSync(id);
+              session.syncCount.value = hive.pendingSync().length;
             } catch (e, stack) {
               AppLog.error('Activity upload failed, kept in sync queue', error: e, stack: stack, tag: 'ACTIVITY');
+              flash('Error', apiErrorMessage(e));
             }
             Get.offNamed(Routes.activitySaved);
           }),

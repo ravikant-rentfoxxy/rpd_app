@@ -16,6 +16,7 @@ import '../session/profile_photo_sheet.dart';
 import '../session/session_controller.dart';
 import 'contribute_dialog.dart';
 import 'join_chrome.dart';
+import '../../core/widgets/flash.dart';
 
 String _draftText(HiveService hive, String key) {
   if (!hive.joinDraftMatchesUser) return '';
@@ -94,11 +95,11 @@ class AboutYouForm extends StatelessWidget {
     void continueNext() {
       persist();
       if (name.text.trim().length < 2) {
-        Get.snackbar('Error', 'enter_name'.tr);
+        flash('Error', 'enter_name'.tr);
         return;
       }
       if (!isValidDob(dob.text)) {
-        Get.snackbar('Error', 'dob_invalid'.tr);
+        flash('Error', 'dob_invalid'.tr);
         return;
       }
       hive.draft.put('step1Done', true);
@@ -438,18 +439,25 @@ class JoinDetailsController extends GetxController {
 
   void continueNext() {
     persist();
+    final session = Get.find<SessionController>();
+    final draftName = (hive.draft.get('fullName') as String?)?.trim() ?? '';
+    final memberName = '${session.member?['fullName'] ?? ''}'.trim();
+    if (draftName.length < 2 && memberName.length < 2) {
+      flash('Error', 'enter_name'.tr);
+      return;
+    }
     final dob = (hive.draft.get('dob') as String?)?.trim() ?? '';
     if (!isValidDob(dob)) {
-      Get.snackbar('Error', 'dob_invalid'.tr);
+      flash('Error', 'dob_invalid'.tr);
       return;
     }
     final pin = pincode.text.trim();
-    if (pin.isNotEmpty && !RegExp(r'^\d{6}$').hasMatch(pin)) {
-      Get.snackbar('Error', 'pincode_invalid'.tr);
+    if (!RegExp(r'^\d{6}$').hasMatch(pin)) {
+      flash('Error', 'pincode_invalid'.tr);
       return;
     }
     if (stateId.value == null || districtId.value == null || assemblyId.value == null) {
-      Get.snackbar('Error', 'complete_steps'.tr);
+      flash('Error', 'complete_steps'.tr);
       return;
     }
     Get.toNamed(Routes.consent);
@@ -537,7 +545,7 @@ class _BoothSelectViewState extends State<BoothSelectView> {
           ),
         ),
         AppField(
-          label: 'pincode'.tr,
+          label: '${'pincode'.tr} *',
           controller: c.pincode,
           hint: 'pincode_hint'.tr,
           icon: Icons.credit_card_outlined,
@@ -686,7 +694,7 @@ class ConsentView extends StatelessWidget {
                   final address = (hive.draft.get('address') as String?)?.trim() ?? '';
                   final pincode = (hive.draft.get('pincode') as String?)?.trim() ?? '';
                   if (fullName.length < 2 || !isValidDob(dob) || (boothId == null && assemblyId == null)) {
-                    Get.snackbar(
+                    flash(
                       'Error',
                       !isValidDob(dob) ? 'dob_invalid'.tr : 'complete_steps'.tr,
                     );
@@ -701,6 +709,8 @@ class ConsentView extends StatelessWidget {
                     if (assemblyId != null) 'assemblyId': assemblyId,
                     if (address.length >= 3) 'address': address,
                     if (RegExp(r'^\d{6}$').hasMatch(pincode)) 'pincode': pincode,
+                    if (session.lat.value != null && session.lng.value != null) 'latitude': session.lat.value,
+                    if (session.lat.value != null && session.lng.value != null) 'longitude': session.lng.value,
                     'locale': switch (hive.locale) {
                       'en' => 'EN',
                       'bho' => 'BHO',
@@ -713,7 +723,7 @@ class ConsentView extends StatelessWidget {
                   session.openPostAuth();
                 } catch (e, stack) {
                   AppLog.error('Register member failed', error: e, stack: stack, tag: 'JOIN');
-                  Get.snackbar('Error', apiErrorMessage(e));
+                  flash('Error', apiErrorMessage(e));
                 }
               },
             ),

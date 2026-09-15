@@ -2,17 +2,20 @@ class Routes {
   static const boot = '/';
   static const mobile = '/mobile';
   static const otp = '/otp';
+  static const profileBasics = '/join/basics';
   static const personal = '/join/personal';
   static const boothSelect = '/join/booth';
   static const consent = '/join/consent';
   static const shell = '/shell';
   static const card = '/card';
   static const profile = '/profile';
+  static const profileEdit = '/profile-edit';
   static const activityHub = '/activity';
   static const activityDetails = '/activity/details';
   static const activityConfirm = '/activity/confirm';
   static const activitySaved = '/activity/saved';
   static const activityRejected = '/activity/rejected';
+  static const members = '/members';
   static const addMember = '/members/add';
   static const recruitConsent = '/members/consent';
   static const boothHealth = '/booth/health';
@@ -41,4 +44,5 @@ class Routes {
   static const createPost = '/posts/create';
   static const postVideo = '/posts/video';
   static const postDetail = '/posts/detail';
+  static const grievance = '/grievance';
 }

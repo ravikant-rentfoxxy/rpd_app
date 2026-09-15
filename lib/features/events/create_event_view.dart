@@ -6,15 +6,19 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import '../../core/routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/api_error.dart';
 import '../../core/utils/app_log.dart';
 import '../../core/utils/local_image.dart';
+import '../../core/utils/open_url.dart';
 import '../../core/widgets/ui.dart';
 import '../join/join_chrome.dart';
+import '../meeting/meeting_views.dart';
 import '../session/session_controller.dart';
 import 'event_api.dart';
 import 'event_datetime_sheet.dart';
+import '../../core/widgets/flash.dart';
 
 const _cream = Color(0xFFFAF6F0);
 const _navy = Color(0xFF1B1340);
@@ -43,20 +47,42 @@ class _CreateEventViewState extends State<CreateEventView> {
   String? photoPath;
   DateTime startsAt = DateTime.now().add(const Duration(hours: 2));
   bool submitting = false;
+  bool verifying = false;
+  String? verifiedQuery;
+  String? verifiedDisplayName;
+  double? verifiedLat;
+  double? verifiedLng;
 
   String get typeLabel => 'activity_$type'.trFallback(type);
+  bool get isMeeting => type == 'MEETING';
+  bool get placeVerified =>
+      verifiedLat != null && verifiedLng != null && verifiedQuery == venue.text.trim();
 
   @override
   void initState() {
     super.initState();
     type = (Get.arguments as String?) ?? 'MEETING';
+    venue.addListener(_onVenueChanged);
   }
 
   @override
   void dispose() {
+    venue.removeListener(_onVenueChanged);
     venue.dispose();
     notes.dispose();
     super.dispose();
+  }
+
+  void _onVenueChanged() {
+    if (!isMeeting || !mounted) return;
+    if (verifiedQuery == venue.text.trim()) return;
+    if (verifiedLat == null && verifiedLng == null) return;
+    setState(() {
+      verifiedQuery = null;
+      verifiedDisplayName = null;
+      verifiedLat = null;
+      verifiedLng = null;
+    });
   }
 
   Future<void> _addPhoto(ImageSource source) async {
@@ -66,7 +92,7 @@ class _CreateEventViewState extends State<CreateEventView> {
       setState(() => photoPath = path);
     } catch (e, stack) {
       AppLog.error('Event photo failed', error: e, stack: stack, tag: 'EVENT');
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     }
   }
 
@@ -136,13 +162,56 @@ class _CreateEventViewState extends State<CreateEventView> {
     Get.to(() => _EventPhotoViewer(path: path));
   }
 
+  Future<void> _verifyPlace() async {
+    final address = venue.text.trim();
+    if (address.length < 2) {
+      flash('Error', 'place_name_required'.tr);
+      return;
+    }
+    setState(() => verifying = true);
+    try {
+      final place = await verifyPlace(address);
+      if (!mounted) return;
+      setState(() {
+        verifiedQuery = address;
+        verifiedDisplayName = '${place['displayName'] ?? address}';
+        verifiedLat = (place['latitude'] as num?)?.toDouble();
+        verifiedLng = (place['longitude'] as num?)?.toDouble();
+      });
+      if (verifiedLat == null || verifiedLng == null) {
+        flash('Error', 'place_not_found'.trFallback('Location not found'));
+        return;
+      }
+      flash('OK', 'place_verified'.trFallback('Address verified'));
+    } catch (e, stack) {
+      AppLog.error('Verify place failed', error: e, stack: stack, tag: 'GEO');
+      flash('Error', apiErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => verifying = false);
+    }
+  }
+
+  void _openMaps() {
+    final lat = verifiedLat;
+    final lng = verifiedLng;
+    if (lat == null || lng == null) return;
+    openExternalUrl(
+      'https://www.google.com/maps/search/?api=1&query=$lat,$lng',
+      preferExternal: true,
+    );
+  }
+
   Future<void> _submit() async {
     if (venue.text.trim().length < 2) {
-      Get.snackbar('Error', 'place_name_required'.tr);
+      flash('Error', 'place_name_required'.tr);
+      return;
+    }
+    if (isMeeting && !placeVerified) {
+      flash('Error', 'verify_place_first'.trFallback('Verify the place before publishing'));
       return;
     }
     if (startsAt.isBefore(DateTime.now())) {
-      Get.snackbar('Error', 'event_future_required'.trFallback('Pick a future date and time'));
+      flash('Error', 'event_future_required'.trFallback('Pick a future date and time'));
       return;
     }
     setState(() => submitting = true);
@@ -155,12 +224,27 @@ class _CreateEventViewState extends State<CreateEventView> {
         description: notes.text.trim(),
         imagePath: photoPath,
       );
+      if (type == 'MEETING') {
+        await createBoothMeetingRecord(
+          title: typeLabel,
+          venue: venue.text.trim(),
+          agenda: notes.text.trim(),
+          startsAt: startsAt,
+          latitude: verifiedLat,
+          longitude: verifiedLng,
+        );
+      }
       await Get.find<SessionController>().loadHome();
       if (mounted) Get.back();
+      if (type == 'MEETING') {
+        Get.toNamed(Routes.meeting);
+      }
       Future<void>.delayed(const Duration(milliseconds: 250), () {
-        Get.snackbar(
-          'event_created'.trFallback('Event created'),
-          'event_created_sub'.trFallback('It now appears in Upcoming events for members below you in this region.'),
+        flash(
+          type == 'MEETING' ? 'meeting_created'.trFallback('Meeting created') : 'event_created'.trFallback('Event created'),
+          type == 'MEETING'
+              ? 'scan_to_join_hint'.trFallback('Members scan this QR at the venue to join')
+              : 'event_created_sub'.trFallback('It now appears in Upcoming events for members below you in this region.'),
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: AppColors.ok,
           colorText: Colors.white,
@@ -170,7 +254,7 @@ class _CreateEventViewState extends State<CreateEventView> {
       });
     } catch (e, stack) {
       AppLog.error('Create event failed', error: e, stack: stack, tag: 'EVENT');
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => submitting = false);
     }
@@ -235,6 +319,69 @@ class _CreateEventViewState extends State<CreateEventView> {
                             decoration: _inputDecoration('place_name_hint'.tr),
                           ),
                         ),
+                        if (isMeeting) ...[
+                          const Divider(height: 1, thickness: 0.5, color: _rowLine),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: SizedBox(
+                                        height: 42,
+                                        child: OutlinedButton(
+                                          onPressed: verifying ? null : _verifyPlace,
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: _navy,
+                                            side: const BorderSide(color: _cardLine),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(21)),
+                                          ),
+                                          child: Text(
+                                            verifying
+                                                ? '…'
+                                                : 'verify_place'.trFallback('Verify address'),
+                                            style: const TextStyle(fontWeight: FontWeight.w700),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    if (placeVerified) ...[
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: SizedBox(
+                                          height: 42,
+                                          child: FilledButton.icon(
+                                            onPressed: _openMaps,
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor: _navy,
+                                              foregroundColor: Colors.white,
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(21)),
+                                              elevation: 0,
+                                            ),
+                                            icon: const Icon(Icons.navigation_rounded, size: 16),
+                                            label: Text(
+                                              'open_in_maps'.trFallback('Maps'),
+                                              style: const TextStyle(fontWeight: FontWeight.w700),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                if (placeVerified) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    verifiedDisplayName ?? '',
+                                    style: const TextStyle(fontSize: 12, color: _muted, height: 1.35),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
                         const Divider(height: 1, thickness: 0.5, color: _rowLine),
                         _FieldRow(
                           mark: const Icon(Icons.notes_rounded, size: 16, color: _orange),
@@ -264,7 +411,7 @@ class _CreateEventViewState extends State<CreateEventView> {
                   child: SizedBox(
                     height: 50,
                     child: FilledButton(
-                      onPressed: submitting ? null : _submit,
+                      onPressed: submitting || (isMeeting && !placeVerified) ? null : _submit,
                       style: FilledButton.styleFrom(
                         backgroundColor: _publish,
                         disabledBackgroundColor: _hint,

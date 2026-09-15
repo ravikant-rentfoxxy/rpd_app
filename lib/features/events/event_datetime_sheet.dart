@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../join/join_chrome.dart';
+import '../../core/widgets/flash.dart';
 
 const _sheet = Color(0xFFFFFBF7);
 const _navy = Color(0xFF1B1340);
@@ -74,7 +75,7 @@ class _EventDateTimeSheetState extends State<EventDateTimeSheet> {
     if (pm) hour += 12;
     final value = DateTime(selected.year, selected.month, selected.day, hour, minute);
     if (value.isBefore(DateTime.now())) {
-      Get.snackbar('Error', 'event_future_required'.trFallback('Pick a future date and time'));
+      flash('Error', 'event_future_required'.trFallback('Pick a future date and time'));
       return;
     }
     Get.back(result: value);

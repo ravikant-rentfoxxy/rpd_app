@@ -312,6 +312,9 @@ class _ProfileController extends GetxController {
   final loadingAssemblies = false.obs;
   final saving = false.obs;
 
+  /// Captured at open — Get.arguments can leak across navigations.
+  late final bool openProfileAfterSave;
+
   bool get geoLoading =>
       loadingStates.value || lookingUpPin.value || loadingDistricts.value || loadingAssemblies.value;
 
@@ -328,6 +331,8 @@ class _ProfileController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    final args = Get.arguments;
+    openProfileAfterSave = args is Map && args['openProfileAfterSave'] == true;
     name = TextEditingController(text: '${member['fullName'] ?? ''}');
     dob = TextEditingController(text: formatDobDisplay('${member['dateOfBirth'] ?? ''}'));
     address = TextEditingController(text: '${member['address'] ?? ''}');
@@ -548,10 +553,11 @@ class _ProfileController extends GetxController {
         if (session.lat.value != null && session.lng.value != null) 'latitude': session.lat.value,
         if (session.lat.value != null && session.lng.value != null) 'longitude': session.lng.value,
       });
-      final fromGate = Get.arguments is Map && Get.arguments['openProfileAfterSave'] == true;
-      if (fromGate) {
+      if (openProfileAfterSave) {
+        // Incomplete-profile gate opened edit without overview underneath.
         Get.offNamed(Routes.profile);
       } else {
+        // Came from overview (or elsewhere with a screen to return to).
         Get.back();
       }
       flash(
