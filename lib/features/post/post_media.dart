@@ -14,6 +14,7 @@ import '../../core/utils/api_error.dart';
 import '../../core/utils/app_log.dart';
 import '../../core/utils/local_image.dart';
 import '../join/join_chrome.dart';
+import '../../core/widgets/flash.dart';
 
 Source _audioSource(String path) {
   final url = resolveStorageUrl(path) ?? resolveMediaUrl(path, kind: 'audio');
@@ -61,6 +62,37 @@ Future<void> initializeVideo(VideoPlayerController controller) async {
     }
   }
   throw last ?? StateError('Video is not ready yet');
+}
+
+const maxPostMediaDuration = Duration(minutes: 1);
+
+bool exceedsMaxPostMedia(Duration? duration) {
+  if (duration == null || duration == Duration.zero) return false;
+  return duration > const Duration(seconds: 61);
+}
+
+Future<Duration?> videoFileDuration(String path) async {
+  VideoPlayerController? controller;
+  try {
+    controller = await openVideoController(path);
+    return controller.value.duration;
+  } catch (_) {
+    return null;
+  } finally {
+    await controller?.dispose();
+  }
+}
+
+Future<Duration?> audioFileDuration(String path) async {
+  final player = AudioPlayer();
+  try {
+    await player.setSource(_audioSource(path));
+    return await player.getDuration();
+  } catch (_) {
+    return null;
+  } finally {
+    await player.dispose();
+  }
 }
 
 class AudioRecordPanel extends StatefulWidget {
@@ -606,27 +638,32 @@ class _AudioRecordPanelState extends State<AudioRecordPanel> {
         }
       } catch (e, stack) {
         AppLog.error('Stop audio failed', error: e, stack: stack, tag: 'POST');
-        Get.snackbar('Error', apiErrorMessage(e));
+        flash('Error', apiErrorMessage(e));
       }
       if (mounted) setState(() => _recording = false);
       return;
     }
     try {
       if (!await _recorder.hasPermission()) {
-        Get.snackbar('Error', 'mic_permission'.trFallback('Allow microphone access to record audio.'));
+        flash('Error', 'mic_permission'.trFallback('Allow microphone access to record audio.'));
         return;
       }
       final dir = await getApplicationDocumentsDirectory();
       final path = '${dir.path}/rpd_post_audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
       await _recorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
       _seconds = 0;
-      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() => _seconds++);
+      _ticker = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) return;
+        setState(() => _seconds++);
+        if (_seconds >= maxPostMediaDuration.inSeconds) {
+          timer.cancel();
+          _toggle();
+        }
       });
       if (mounted) setState(() => _recording = true);
     } catch (e, stack) {
       AppLog.error('Record audio failed', error: e, stack: stack, tag: 'POST');
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     }
   }
 
@@ -670,7 +707,7 @@ class _AudioRecordPanelState extends State<AudioRecordPanel> {
             ),
             const SizedBox(height: 8),
             Text(
-              _recording ? 'stop_recording'.trFallback('Stop') : 'record_audio_sub'.trFallback('Record a new audio clip'),
+              _recording ? 'stop_recording'.trFallback('Stop') : 'media_max_duration'.trFallback('Video and audio can be up to 1 minute.'),
               style: const TextStyle(color: AppColors.ink3, fontSize: 12),
             ),
             if (widget.onCancel != null) ...[

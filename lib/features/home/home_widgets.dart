@@ -7,12 +7,14 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/api_error.dart';
 import '../../core/utils/local_image.dart';
 import '../../core/utils/open_url.dart';
+import '../../core/widgets/empty_card.dart';
 import '../../core/utils/relative_time.dart';
 import '../../data/models/home_feed.dart';
 import '../events/join_celebration.dart';
 import '../join/join_chrome.dart';
 import '../post/post_media.dart';
 import '../session/session_controller.dart';
+import '../../core/widgets/flash.dart';
 
 enum HomeFeedKind { video, blog, nearby }
 
@@ -119,7 +121,7 @@ class _HomeEventCardState extends State<HomeEventCard> {
       if (!mounted) return;
       await showJoinCelebration(context);
     } catch (e) {
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => joining = false);
     }
@@ -155,8 +157,12 @@ class _HomeEventCardState extends State<HomeEventCard> {
               const SizedBox(height: 8),
               if (people.isEmpty)
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  child: Text('no_joiners_yet'.trFallback('No one has joined yet.'), style: const TextStyle(color: HomeColors.muted)),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: AppEmptyCard(
+                    compact: true,
+                    icon: Icons.group_outlined,
+                    title: 'no_joiners_yet'.trFallback('No one has joined yet.'),
+                  ),
                 )
               else
                 Flexible(
@@ -393,7 +399,6 @@ class HomeEventsBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (events.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -402,8 +407,42 @@ class HomeEventsBanner extends StatelessWidget {
           eyebrow: 'happening_soon'.tr,
           onSeeMore: () => Get.toNamed(Routes.upcomingEvents),
         ),
-        HomeEventCard(event: events.first),
+        if (events.isEmpty)
+          const _HomeEventsEmpty()
+        else
+          HomeEventCard(event: events.first),
       ],
+    );
+  }
+}
+
+class _HomeEventsEmpty extends StatelessWidget {
+  const _HomeEventsEmpty();
+
+  @override
+  Widget build(BuildContext context) {
+    final canCreate = Get.isRegistered<SessionController>() && Get.find<SessionController>().canCreateOrgEvents;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: InkWell(
+        onTap: () => Get.toNamed(canCreate ? Routes.createEvent : Routes.upcomingEvents),
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
+          decoration: BoxDecoration(
+            color: HomeColors.navy,
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: AppEmptyCard(
+            compact: true,
+            onDark: true,
+            icon: Icons.event_outlined,
+            title: 'upcoming_events_empty'.tr,
+            sub: canCreate ? 'create_event_eyebrow'.trFallback('Create an upcoming event') : null,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -568,11 +607,13 @@ class HomeLeaderboard extends StatelessWidget {
     final value = (score / 100).clamp(0, 1).toDouble();
     return Padding(
       padding: const EdgeInsets.only(bottom: 18),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-        decoration: BoxDecoration(color: HomeColors.navy, borderRadius: BorderRadius.circular(28)),
-        child: Stack(
-          children: [
+      child: GestureDetector(
+        onTap: () => Get.find<SessionController>().shellIndex.value = 3,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+          decoration: BoxDecoration(color: HomeColors.navy, borderRadius: BorderRadius.circular(28)),
+          child: Stack(
+            children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -624,6 +665,7 @@ class HomeLeaderboard extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -662,7 +704,11 @@ class HomeActivityRail extends StatelessWidget {
     if (posts.isEmpty) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 18),
-        child: Text('region_posts_empty'.tr, style: const TextStyle(color: HomeColors.muted, fontSize: 13)),
+        child: AppEmptyCard(
+          compact: true,
+          icon: Icons.forum_outlined,
+          title: 'region_posts_empty'.tr,
+        ),
       );
     }
     final shown = posts.take(6).toList();

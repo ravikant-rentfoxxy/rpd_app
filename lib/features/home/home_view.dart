@@ -61,6 +61,7 @@ class HomeView extends StatelessWidget {
                     photoUrl: memberPhotoRef(member),
                     initials: _initials(member['fullName'] as String?),
                     score: boothScore,
+                    unreadCount: session.unreadNotifications.value,
                   ),
                 ),
                 SliverPadding(
@@ -73,13 +74,6 @@ class HomeView extends StatelessWidget {
                           subtitle: '',
                           icon: Icons.cloud_upload_outlined,
                           onTap: () => Get.toNamed(Routes.sync),
-                        ),
-                      if (session.needsVerification)
-                        _TaskBanner(
-                          title: 'not_verified'.tr,
-                          subtitle: 'complete_verification'.tr,
-                          icon: Icons.verified_outlined,
-                          onTap: session.openJoinVerification,
                         ),
                       _TaskBanner(
                         title: 'tasks_due'.trParams({'n': '${_tasksDue(home).length}'}),
@@ -133,6 +127,7 @@ class _HomeHero extends StatelessWidget {
     required this.photoUrl,
     required this.initials,
     required this.score,
+    required this.unreadCount,
   });
 
   final double topInset;
@@ -141,6 +136,7 @@ class _HomeHero extends StatelessWidget {
   final String? photoUrl;
   final String initials;
   final num score;
+  final int unreadCount;
 
   @override
   Widget build(BuildContext context) {
@@ -156,24 +152,43 @@ class _HomeHero extends StatelessWidget {
             children: [
               GestureDetector(
                 onTap: () => Get.toNamed(Routes.profile),
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: const BoxDecoration(shape: BoxShape.circle, color: HomeColors.accent300),
-                  clipBehavior: Clip.antiAlias,
-                  child: localOrNetworkPhoto(
-                    raw: photoUrl,
-                    fallback: Center(
-                      child: Text(
-                        initials,
-                        style: GoogleFonts.bricolageGrotesque(
-                          color: HomeColors.accent900,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(shape: BoxShape.circle, color: HomeColors.accent300),
+                      clipBehavior: Clip.antiAlias,
+                      child: localOrNetworkPhoto(
+                        raw: photoUrl,
+                        fallback: Center(
+                          child: Text(
+                            initials,
+                            style: GoogleFonts.bricolageGrotesque(
+                              color: HomeColors.accent900,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                    if (!Get.find<SessionController>().canUseMemberActions)
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          width: 16,
+                          height: 16,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE53935),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: HomeColors.navy, width: 2),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               const SizedBox(width: 12),
@@ -199,7 +214,10 @@ class _HomeHero extends StatelessWidget {
               const LanguageDropdown(pill: true),
               const SizedBox(width: 10),
               GestureDetector(
-                onTap: () => Get.toNamed(Routes.notifications),
+                onTap: () async {
+                  await Get.toNamed(Routes.notifications);
+                  await Get.find<SessionController>().refreshUnreadNotifications();
+                },
                 child: Container(
                   width: 36,
                   height: 36,
@@ -209,21 +227,25 @@ class _HomeHero extends StatelessWidget {
                     alignment: Alignment.center,
                     children: [
                       const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 17),
-                      Positioned(
-                        top: -4,
-                        right: -4,
-                        child: Container(
-                          width: 18,
-                          height: 18,
-                          decoration: BoxDecoration(
-                            color: HomeColors.orange,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: HomeColors.navy, width: 2),
+                      if (unreadCount > 0)
+                        Positioned(
+                          top: -4,
+                          right: -4,
+                          child: Container(
+                            constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: HomeColors.orange,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: HomeColors.navy, width: 2),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              unreadCount > 99 ? '99+' : '$unreadCount',
+                              style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800),
+                            ),
                           ),
-                          alignment: Alignment.center,
-                          child: const Text('2', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
                         ),
-                      ),
                     ],
                   ),
                 ),

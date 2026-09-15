@@ -15,6 +15,8 @@ Future<Map<String, dynamic>> uploadRegionPost({
   required String description,
   String? issueId,
   String? issueCode,
+  String? subIssueId,
+  String? subIssueCode,
   double? latitude,
   double? longitude,
   Object? districtId,
@@ -24,6 +26,7 @@ Future<Map<String, dynamic>> uploadRegionPost({
   String? authorName,
   Object? authorMobile,
   String? thumbnailPath,
+  String? documentPath,
 }) async {
   final hasFile = filePath != null && filePath.isNotEmpty && File(filePath).existsSync();
   final name = hasFile ? filePath.split(RegExp(r'[/\\]')).last : '';
@@ -35,6 +38,8 @@ Future<Map<String, dynamic>> uploadRegionPost({
     'description': description,
     if (issueId != null && issueId.isNotEmpty) 'issueId': issueId,
     if (issueCode != null && issueCode.isNotEmpty) 'issueCode': issueCode,
+    if (subIssueId != null && subIssueId.isNotEmpty) 'subIssueId': subIssueId,
+    if (subIssueCode != null && subIssueCode.isNotEmpty) 'subIssueCode': subIssueCode,
     if (hasFile)
       'file': await MultipartFile.fromFile(
         filePath!,
@@ -47,6 +52,12 @@ Future<Map<String, dynamic>> uploadRegionPost({
         filename: (thumbName == null || thumbName.isEmpty) ? 'thumb.jpg' : thumbName,
         contentType: MediaType('image', 'jpeg'),
       ),
+    if (documentPath != null && documentPath.isNotEmpty && File(documentPath).existsSync())
+      'document': await MultipartFile.fromFile(
+        documentPath,
+        filename: documentPath.split(RegExp(r'[/\\]')).last,
+        contentType: _contentTypeFor('DOCUMENT', documentPath),
+      ),
     ?'latitude': latitude,
     ?'longitude': longitude,
     if (districtId != null && '$districtId'.isNotEmpty) 'districtId': districtId,
@@ -58,13 +69,16 @@ Future<Map<String, dynamic>> uploadRegionPost({
   final post = Map<String, dynamic>.from((res['data'] as Map)['post'] as Map);
   post['pending'] = false;
   post['id'] = post['clientUuid'] ?? post['id'] ?? clientUuid;
-  post['authorName'] ??= authorName;
-  post['authorMobile'] ??= authorMobile;
   post['authorId'] ??= Get.find<HiveService>().profile?['id'];
   return post;
 }
 
-Future<void> persistUploadedPost(Map<String, dynamic> post, {String? localPath, String? thumbnailPath}) async {
+Future<void> persistUploadedPost(
+  Map<String, dynamic> post, {
+  String? localPath,
+  String? thumbnailPath,
+  String? documentPath,
+}) async {
   final hive = Get.find<HiveService>();
   final id = '${post['id'] ?? ''}';
   final clientUuid = '${post['clientUuid'] ?? ''}';
@@ -72,6 +86,7 @@ Future<void> persistUploadedPost(Map<String, dynamic> post, {String? localPath, 
   if (clientUuid.isNotEmpty && clientUuid != id) await hive.deletePost(clientUuid);
   await _deleteLocalFile(localPath);
   await _deleteLocalFile(thumbnailPath);
+  await _deleteLocalFile(documentPath);
 }
 
 Future<void> _deleteLocalFile(String? path) async {
@@ -89,6 +104,15 @@ MediaType _contentTypeFor(String mediaType, String path) {
     'IMAGE' => MediaType('image', ext == 'png' ? 'png' : ext == 'webp' ? 'webp' : 'jpeg'),
     'AUDIO' => MediaType('audio', ext == 'mp3' || ext == 'mpeg' ? 'mpeg' : 'mp4'),
     'VIDEO' => MediaType('video', ext == 'mov' || ext == 'qt' ? 'quicktime' : 'mp4'),
+    'DOCUMENT' => switch (ext) {
+        'pdf' => MediaType('application', 'pdf'),
+        'doc' => MediaType('application', 'msword'),
+        'docx' => MediaType('application', 'vnd.openxmlformats-officedocument.wordprocessingml.document'),
+        'png' => MediaType('image', 'png'),
+        'webp' => MediaType('image', 'webp'),
+        'jpg' || 'jpeg' => MediaType('image', 'jpeg'),
+        _ => MediaType('application', 'octet-stream'),
+      },
     _ => MediaType('application', 'octet-stream'),
   };
 }
@@ -97,6 +121,44 @@ Future<List<Map<String, dynamic>>> fetchRegionPosts() async {
   final res = await Get.find<ApiClient>().get('/posts');
   final items = ((res['data'] as Map?)?['posts'] as List?) ?? [];
   return items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+}
+
+Future<List<Map<String, dynamic>>> fetchGrievancePosts() async {
+  final res = await Get.find<ApiClient>().get('/posts/grievances');
+  final items = ((res['data'] as Map?)?['posts'] as List?) ?? [];
+  return items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+}
+
+String _postRef(Map<String, dynamic> post) {
+  final serverId = '${post['serverId'] ?? ''}'.trim();
+  if (serverId.isNotEmpty) return serverId;
+  return '${post['clientUuid'] ?? post['id'] ?? ''}';
+}
+
+Future<Map<String, dynamic>> fetchRegionPost(Map<String, dynamic> post) async {
+  final res = await Get.find<ApiClient>().get('/posts/${_postRef(post)}');
+  return Map<String, dynamic>.from((res['data'] as Map)['post'] as Map);
+}
+
+Future<List<Map<String, dynamic>>> fetchPostAssignees(Map<String, dynamic> post) async {
+  final res = await Get.find<ApiClient>().get('/posts/${_postRef(post)}/assignees');
+  final items = ((res['data'] as Map?)?['members'] as List?) ?? [];
+  return items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+}
+
+Future<Map<String, dynamic>> assignRegionPost(Map<String, dynamic> post, String? memberId) async {
+  final res = await Get.find<ApiClient>().post('/posts/${_postRef(post)}/assign', data: {'memberId': memberId});
+  return Map<String, dynamic>.from((res['data'] as Map)['post'] as Map);
+}
+
+Future<Map<String, dynamic>> resolveRegionPost(Map<String, dynamic> post, String status) async {
+  final res = await Get.find<ApiClient>().post('/posts/${_postRef(post)}/resolve', data: {'status': status});
+  return Map<String, dynamic>.from((res['data'] as Map)['post'] as Map);
+}
+
+Future<String> summariseRegionPost(Map<String, dynamic> post) async {
+  final res = await Get.find<ApiClient>().post('/posts/${_postRef(post)}/summary');
+  return '${((res['data'] as Map?)?['summary'] ?? '')}'.trim();
 }
 
 List<Map<String, dynamic>> localPostIssues() => Get.find<HiveService>().localIssues();

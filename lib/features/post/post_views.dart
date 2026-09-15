@@ -15,14 +15,17 @@ import '../../core/utils/app_log.dart';
 import '../../core/utils/local_image.dart';
 import '../../core/utils/network.dart';
 import '../../core/utils/relative_time.dart';
+import '../../core/widgets/empty_card.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/local/hive_service.dart';
 import '../join/join_chrome.dart';
+import '../session/complete_profile_dialog.dart';
 import '../session/session_controller.dart';
 import 'post_api.dart';
 import 'post_done_celebration.dart';
 import 'post_issue_sheet.dart';
 import 'post_media.dart';
+import '../../core/widgets/flash.dart';
 
 enum _PostMediaKind { image, audio, video }
 
@@ -69,10 +72,14 @@ class _PostsListViewState extends State<PostsListView> with SingleTickerProvider
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
         ),
+        scrolledUnderElevation: 0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         bottom: TabBar(
           controller: _tabs,
           indicatorColor: HomeColors.orange,
           indicatorWeight: 3,
+          dividerColor: Colors.transparent,
           labelColor: Colors.white,
           unselectedLabelColor: const Color(0xB3FFFFFF),
           labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
@@ -89,8 +96,8 @@ class _PostsListViewState extends State<PostsListView> with SingleTickerProvider
         return TabBarView(
           controller: _tabs,
           children: [
-            _PostsPane(posts: session.myPosts()),
-            _PostsPane(posts: session.otherPosts()),
+            _PostsPane(posts: session.myPosts(), emptyKey: 'my_posts_empty'),
+            _PostsPane(posts: session.otherPosts(), emptyKey: 'other_posts_empty'),
           ],
         );
       }),
@@ -99,19 +106,21 @@ class _PostsListViewState extends State<PostsListView> with SingleTickerProvider
 }
 
 class _PostsPane extends StatelessWidget {
-  const _PostsPane({required this.posts});
+  const _PostsPane({required this.posts, required this.emptyKey});
   final List<Map<String, dynamic>> posts;
+  final String emptyKey;
 
   @override
   Widget build(BuildContext context) {
     if (posts.isEmpty) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Text(
-            'region_posts_empty'.tr,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.ink3),
+          padding: const EdgeInsets.all(24),
+          child: AppEmptyCard(
+            icon: Icons.forum_outlined,
+            title: emptyKey == 'my_posts_empty'
+                ? 'my_posts_empty'.trFallback('You have not shared any posts yet. Tap + to create one.')
+                : 'other_posts_empty'.trFallback('No posts from others in your region yet.'),
           ),
         ),
       );
@@ -147,7 +156,7 @@ class _CreatePostButton extends StatelessWidget {
           highlightColor: const Color(0x66FFFFFF),
           splashFactory: InkSparkle.splashFactory,
           onTap: () {
-            if (!Get.find<SessionController>().guardVerifiedAccess()) return;
+            if (!Get.find<SessionController>().guardCreatePost()) return;
             Get.toNamed(Routes.createPost);
           },
           child: const SizedBox(
@@ -173,11 +182,14 @@ class _CreatePostViewState extends State<CreatePostView> {
   final mediaKind = _PostMediaKind.image.obs;
   final mediaPath = Rxn<String>();
   final thumbPath = Rxn<String>();
+  final documentPath = Rxn<String>();
+  final addingDocument = false.obs;
   final recording = false.obs;
   final submitting = false.obs;
   final online = true.obs;
   final issues = <Map<String, dynamic>>[].obs;
-  final issueKeyValue = Rxn<String>();
+  final selectedIssue = Rxn<Map<String, dynamic>>();
+  final selectedSubIssue = Rxn<Map<String, dynamic>>();
   StreamSubscription<bool>? _networkSub;
   bool _openedIssueSheet = false;
   late final bool _openedFromPosts;
@@ -190,34 +202,44 @@ class _CreatePostViewState extends State<CreatePostView> {
     _networkSub = watchNetwork().listen((value) => online.value = value);
     _loadIssues();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _pickIssue(auto: true);
+      if (!mounted) return;
+      if (!Get.find<SessionController>().canUseMemberActions) {
+        Get.back();
+        showCompleteProfileDialog();
+        return;
+      }
+      _pickIssue(auto: true);
     });
   }
 
   Future<void> _loadIssues() async {
     issues.assignAll(localPostIssues());
-    if (issueKeyValue.value != null && issues.every((issue) => issueKey(issue) != issueKeyValue.value)) {
-      issueKeyValue.value = null;
+    final current = selectedIssue.value;
+    if (current != null && issues.every((issue) => issueKey(issue) != issueKey(current))) {
+      selectedIssue.value = null;
+      selectedSubIssue.value = null;
     }
   }
 
   Future<void> _pickIssue({bool auto = false}) async {
     if (!mounted || issues.isEmpty) return;
-    if (auto && (_openedIssueSheet || issueKeyValue.value != null)) return;
+    if (auto && (_openedIssueSheet || selectedSubIssue.value != null)) return;
     _openedIssueSheet = true;
     final picked = await showIssueSelectSheet(
       context: context,
       issues: issues,
-      selectedId: issueKeyValue.value,
+      selectedId: selectedIssue.value == null ? null : issueKey(selectedIssue.value!),
+      selectedSubId: selectedSubIssue.value == null ? null : issueKey(selectedSubIssue.value!),
     );
     if (!mounted || picked == null) return;
-    issueKeyValue.value = picked;
+    selectedIssue.value = picked.issue;
+    selectedSubIssue.value = picked.subIssue;
     _showMediaInfo();
   }
 
   void _showMediaInfo() {
     if (!mounted) return;
-    Get.snackbar(
+    flash(
       'media_info_title'.tr,
       'media_info_snack'.tr,
       snackPosition: SnackPosition.BOTTOM,
@@ -229,14 +251,8 @@ class _CreatePostViewState extends State<CreatePostView> {
     );
   }
 
-  Map<String, dynamic>? get _selectedIssue {
-    final key = issueKeyValue.value;
-    if (key == null) return null;
-    for (final issue in issues) {
-      if (issueKey(issue) == key) return issue;
-    }
-    return null;
-  }
+  Map<String, dynamic>? get _selectedIssue => selectedIssue.value;
+  Map<String, dynamic>? get _selectedSubIssue => selectedSubIssue.value;
 
   @override
   void dispose() {
@@ -323,7 +339,7 @@ class _CreatePostViewState extends State<CreatePostView> {
       }
     } catch (e, stack) {
       AppLog.error('Post photo failed', error: e, stack: stack, tag: 'POST');
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     }
   }
 
@@ -334,20 +350,43 @@ class _CreatePostViewState extends State<CreatePostView> {
       return;
     }
     try {
-      final picked = await ImagePicker().pickVideo(source: source);
+      final picked = await ImagePicker().pickVideo(
+        source: source,
+        maxDuration: maxPostMediaDuration,
+      );
       if (picked == null) return;
+      if (exceedsMaxPostMedia(await videoFileDuration(picked.path))) {
+        flash('Error', 'media_max_duration'.trFallback('Video and audio can be up to 1 minute.'));
+        return;
+      }
       mediaPath.value = picked.path;
       thumbPath.value = await generateVideoThumbnail(picked.path);
       recording.value = false;
     } catch (e, stack) {
       AppLog.error('Post video failed', error: e, stack: stack, tag: 'POST');
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     }
   }
 
   Future<void> _startAudioRecord() async {
     if (!await _requireNetwork()) return;
     recording.value = true;
+  }
+
+  Future<void> _pickDocument() async {
+    try {
+      final picked = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: const ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'webp'],
+      );
+      final path = picked?.path;
+      if (path == null || path.isEmpty) return;
+      documentPath.value = path;
+      addingDocument.value = false;
+    } catch (e, stack) {
+      AppLog.error('Post document failed', error: e, stack: stack, tag: 'POST');
+      flash('Error', apiErrorMessage(e));
+    }
   }
 
   Future<void> _pickAudio() async {
@@ -360,31 +399,49 @@ class _CreatePostViewState extends State<CreatePostView> {
       final picked = await FilePicker.pickFile(type: FileType.audio);
       final path = picked?.path;
       if (path == null || path.isEmpty) return;
+      if (exceedsMaxPostMedia(await audioFileDuration(path))) {
+        flash('Error', 'media_max_duration'.trFallback('Video and audio can be up to 1 minute.'));
+        return;
+      }
       mediaPath.value = path;
       recording.value = false;
     } catch (e, stack) {
       AppLog.error('Post audio failed', error: e, stack: stack, tag: 'POST');
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     }
   }
 
   Future<void> submit() async {
     final kind = mediaKind.value;
     final issue = _selectedIssue;
+    final subIssue = _selectedSubIssue;
     if (issue == null) {
-      Get.snackbar('Error', 'post_issue_required'.trFallback('Select an issue'));
+      flash('Error', 'post_issue_required'.trFallback('Select an issue'));
+      return;
+    }
+    if (subIssue == null) {
+      flash('Error', 'post_sub_issue_required'.trFallback('Select a sub-issue'));
       return;
     }
     final localPath = mediaPath.value;
     final hasMedia = localPath != null && localPath.isNotEmpty;
     final hasText = description.text.trim().isNotEmpty;
     if (!hasMedia && !hasText) {
-      Get.snackbar('Error', 'post_content_required'.trFallback('Add a photo, audio or video, or write a description'));
+      flash('Error', 'post_content_required'.trFallback('Add a photo, audio or video, or write a description'));
       return;
+    }
+    if (hasMedia && (kind == _PostMediaKind.video || kind == _PostMediaKind.audio)) {
+      final duration = kind == _PostMediaKind.video
+          ? await videoFileDuration(localPath!)
+          : await audioFileDuration(localPath!);
+      if (exceedsMaxPostMedia(duration)) {
+        flash('Error', 'media_max_duration'.trFallback('Video and audio can be up to 1 minute.'));
+        return;
+      }
     }
     final connected = await hasNetwork();
     online.value = connected;
-    if (!connected && (kind != _PostMediaKind.image || !hasMedia)) {
+    if (!connected && (kind != _PostMediaKind.image || !hasMedia || documentPath.value != null)) {
       await _showOfflineMessage();
       return;
     }
@@ -406,6 +463,8 @@ class _CreatePostViewState extends State<CreatePostView> {
       }
       final issueId = '${issue['id'] ?? ''}';
       final issueCode = '${issue['code'] ?? ''}';
+      final subIssueId = '${subIssue['id'] ?? ''}';
+      final subIssueCode = '${subIssue['code'] ?? ''}';
       final row = {
         'id': id,
         'clientUuid': id,
@@ -419,6 +478,12 @@ class _CreatePostViewState extends State<CreatePostView> {
         'issuePriority': issue['priority'],
         'issueBand': issue['band'],
         'issue': issue,
+        'subIssueId': subIssueId,
+        'subIssueCode': subIssueCode,
+        'subIssueName': subIssue['name'],
+        'subIssueNameHi': subIssue['nameHi'],
+        'subIssueNameBho': subIssue['nameBho'],
+        'subIssue': subIssue,
         'mediaPath': localPath,
         'photoPath': hasMedia && kind == _PostMediaKind.image ? localPath : null,
         'thumbnailPath': thumbnail,
@@ -441,6 +506,8 @@ class _CreatePostViewState extends State<CreatePostView> {
           description: row['description'] as String,
           issueId: issueId.isEmpty ? null : issueId,
           issueCode: issueCode.isEmpty ? null : issueCode,
+          subIssueId: subIssueId.isEmpty ? null : subIssueId,
+          subIssueCode: subIssueCode.isEmpty ? null : subIssueCode,
           latitude: session.lat.value,
           longitude: session.lng.value,
           districtId: row['districtId'],
@@ -450,8 +517,14 @@ class _CreatePostViewState extends State<CreatePostView> {
           authorName: row['authorName'] as String?,
           authorMobile: row['authorMobile'],
           thumbnailPath: thumbnail,
+          documentPath: documentPath.value,
         );
-        await persistUploadedPost(uploaded, localPath: localPath, thumbnailPath: thumbnail);
+        await persistUploadedPost(
+          uploaded,
+          localPath: localPath,
+          thumbnailPath: thumbnail,
+          documentPath: documentPath.value,
+        );
         session.upsertRegionPost(uploaded);
       } else {
         await hive.savePost({...row, 'pending': true, 'mediaType': 'image'});
@@ -467,13 +540,13 @@ class _CreatePostViewState extends State<CreatePostView> {
     } catch (e, stack) {
       AppLog.error('Post save failed', error: e, stack: stack, tag: 'POST');
       submitting.value = false;
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     }
   }
 
   void _openRegionPosts() {
     if (_openedFromPosts) {
-      if (Get.isSnackbarOpen) Get.closeAllSnackbars();
+      closeFlash();
       if (mounted && Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
         return;
@@ -525,8 +598,8 @@ class _CreatePostViewState extends State<CreatePostView> {
           const SizedBox(height: 18),
           Obx(
             () => _IssueDropdown(
-              value: issueKeyValue.value,
-              issues: issues,
+              issue: selectedIssue.value,
+              subIssue: selectedSubIssue.value,
               onTap: _pickIssue,
             ),
           ),
@@ -553,7 +626,44 @@ class _CreatePostViewState extends State<CreatePostView> {
               onReplace: _openReplace,
               onRemove: () {
                 mediaPath.value = null;
+                documentPath.value = null;
+                addingDocument.value = false;
               },
+            );
+          }),
+          Obx(() {
+            if (mediaPath.value == null) return const SizedBox.shrink();
+            if (documentPath.value != null) {
+              return Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: _DocumentChip(
+                  path: documentPath.value!,
+                  onRemove: () {
+                    documentPath.value = null;
+                    addingDocument.value = false;
+                  },
+                ),
+              );
+            }
+            if (addingDocument.value) {
+              return Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: _AddDocumentTile(onTap: _pickDocument),
+              );
+            }
+            return Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => addingDocument.value = true,
+                  icon: const Icon(Icons.attach_file_rounded, size: 18, color: HomeColors.orange),
+                  label: Text(
+                    'add_extra_document'.trFallback('Add extra document'),
+                    style: const TextStyle(color: HomeColors.orange, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
             );
           }),
           const SizedBox(height: 22),
@@ -609,7 +719,7 @@ class CreatePostEntry extends StatelessWidget {
       child: InkWell(
         onTap: onTap ??
             () {
-              if (!Get.find<SessionController>().guardVerifiedAccess()) return;
+              if (!Get.find<SessionController>().guardCreatePost()) return;
               Get.toNamed(Routes.createPost);
             },
         borderRadius: BorderRadius.circular(16),
@@ -655,25 +765,15 @@ class CreatePostEntry extends StatelessWidget {
 }
 
 class _IssueDropdown extends StatelessWidget {
-  const _IssueDropdown({required this.value, required this.issues, required this.onTap});
-  final String? value;
-  final List<Map<String, dynamic>> issues;
+  const _IssueDropdown({required this.issue, required this.subIssue, required this.onTap});
+  final Map<String, dynamic>? issue;
+  final Map<String, dynamic>? subIssue;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final keys = issues.map(issueKey).toSet();
-    final selected = value != null && keys.contains(value) ? value : null;
-    final filled = selected != null;
-    String? label;
-    if (selected != null) {
-      for (final issue in issues) {
-        if (issueKey(issue) == selected) {
-          label = issueLabelOf(issue);
-          break;
-        }
-      }
-    }
+    final filled = issue != null && subIssue != null;
+    final label = issuePathLabelOf(issue, subIssue);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -700,7 +800,7 @@ class _IssueDropdown extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  label ?? 'post_issue_hint'.trFallback('Select one issue'),
+                  label.isEmpty ? 'post_issue_hint'.trFallback('Select issue and sub-issue') : label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.right,
@@ -742,6 +842,84 @@ class IssueChip extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+}
+
+class _AddDocumentTile extends StatelessWidget {
+  const _AddDocumentTile({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFF3EEE6),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          height: 132,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE4DCD0)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.insert_drive_file_outlined, color: HomeColors.orange, size: 30),
+              const SizedBox(height: 8),
+              Text('add_document'.trFallback('Add document'), style: const TextStyle(color: Color(0xFF1A1325), fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text(
+                'add_document_hint'.trFallback('PDF, Word or a photo of the document'),
+                style: const TextStyle(color: Color(0xFF8A847A), fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DocumentChip extends StatelessWidget {
+  const _DocumentChip({required this.path, required this.onRemove});
+  final String path;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = path.split(RegExp(r'[/\\]')).last;
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE4DCD0)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.attach_file_rounded, color: HomeColors.orange, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF1A1325)),
+              ),
+            ),
+            IconButton(
+              onPressed: onRemove,
+              icon: const Icon(Icons.close_rounded, size: 18, color: HomeColors.muted),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -938,9 +1116,10 @@ class _MediaChoiceSheetState extends State<_MediaChoiceSheet> {
 }
 
 class RegionPostCard extends StatelessWidget {
-  const RegionPostCard({super.key, required this.post, this.compact = false});
+  const RegionPostCard({super.key, required this.post, this.compact = false, this.onTap});
   final Map<String, dynamic> post;
   final bool compact;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -964,7 +1143,7 @@ class RegionPostCard extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => Get.toNamed(Routes.postDetail, arguments: post),
+        onTap: onTap ?? () => Get.toNamed(Routes.postDetail, arguments: post),
         child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -990,10 +1169,36 @@ class RegionPostCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                   ],
-                  Text(
-                    lastActiveWhen(post['createdAt']),
-                    style: const TextStyle(fontSize: 12, color: HomeColors.muted),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          lastActiveWhen(post['createdAt']),
+                          style: const TextStyle(fontSize: 12, color: HomeColors.muted),
+                        ),
+                      ),
+                      if ('${post['status'] ?? ''}'.toUpperCase() == 'RESOLVED')
+                        Text(
+                          'resolve_resolved'.trFallback('Resolved'),
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: HomeColors.teal),
+                        ),
+                    ],
                   ),
+                  if ('${post['authorName'] ?? ''}'.trim().isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      '${'posted_by'.trFallback('Posted by')} ${post['authorName']}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: HomeColors.ink),
+                    ),
+                  ],
+                  if ('${post['assigneeName'] ?? ''}'.trim().isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '${'assigned_to'.trFallback('Assigned to')} ${post['assigneeName']}'
+                      '${'${post['assigneePostLabel'] ?? ''}'.trim().isEmpty ? '' : ' · ${post['assigneePostLabel']}'}',
+                      style: const TextStyle(fontSize: 12, color: HomeColors.ink),
+                    ),
+                  ],
                 ],
               ),
             ),

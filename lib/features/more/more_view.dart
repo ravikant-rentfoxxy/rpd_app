@@ -27,9 +27,21 @@ class MoreView extends StatelessWidget {
               child: CardTitle('verification_inbox'.trFallback('Verification inbox')),
             ),
           AppCard(
+            onTap: () => Get.toNamed(Routes.members),
+            child: CardTitle('members'.tr, sub: 'members_more_sub'.trFallback('Add members and see your recruits')),
+          ),
+          AppCard(
             onTap: () => Get.toNamed(Routes.posts),
             child: CardTitle('region_posts'.tr, sub: 'region_posts_sub'.tr),
           ),
+          if (session.canCreateOrgEvents)
+            AppCard(
+              onTap: () => Get.toNamed(Routes.grievance),
+              child: CardTitle(
+                'grievance'.trFallback('Grievance'),
+                sub: 'grievance_sub'.trFallback('Pending posts in your region to assign'),
+              ),
+            ),
           AppCard(
             onTap: showMembershipCardOverlay,
             child: CardTitle('membership_card'.tr),
@@ -47,10 +59,11 @@ class MoreView extends StatelessWidget {
               sub: 'activity_events_sub'.trFallback('Answer live activity events'),
             ),
           ),
-          AppCard(
-            onTap: () => Get.toNamed(Routes.activityHub),
-            child: CardTitle('record_activity'.tr, sub: 'record_activity_sub'.tr),
-          ),
+          if (session.canCreateOrgEvents)
+            AppCard(
+              onTap: () => Get.toNamed(Routes.activityHub),
+              child: CardTitle('record_activity'.tr, sub: 'record_activity_sub'.tr),
+            ),
           AppCard(onTap: () => Get.toNamed(Routes.meeting), child: CardTitle('booth_meeting'.tr)),
           AppCard(
             child: Row(

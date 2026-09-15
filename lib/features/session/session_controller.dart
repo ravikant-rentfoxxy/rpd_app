@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile;
 import '../../core/constants/org_hierarchy.dart';
+import '../../core/push/push_service.dart';
 import '../../core/constants/post_issues.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/utils/app_log.dart';
@@ -16,7 +17,9 @@ import '../../data/remote/api_client.dart';
 import '../activity_event/activity_event_dialog.dart';
 import '../engagement/engagement_dialog.dart';
 import '../events/event_api.dart';
+import '../notifications/notifications_api.dart';
 import '../post/post_api.dart';
+import 'complete_profile_dialog.dart';
 
 class SessionController extends GetxController {
   final hive = Get.find<HiveService>();
@@ -31,6 +34,7 @@ class SessionController extends GetxController {
   final lng = Rxn<double>();
   final syncCount = 0.obs;
   final online = true.obs;
+  final unreadNotifications = 0.obs;
   final recruitsTick = 0.obs;
   final postsTick = 0.obs;
   final regionPosts = <Map<String, dynamic>>[].obs;
@@ -59,7 +63,7 @@ class SessionController extends GetxController {
     profile.value = hive.profile;
     syncCount.value = hive.pendingSync().length;
     localeCode.value = hive.locale ?? 'en';
-    api.onSessionExpired = signOut;
+    api.onSessionExpired = () => signOut(notifyServer: false);
     _networkSub = watchNetwork().listen((up) => online.value = up);
     unawaited(hive.keepPendingImagePostsOnly());
   }
@@ -99,11 +103,30 @@ class SessionController extends GetxController {
 
   bool get needsVerification => !isVerified(member);
 
+  static bool hasProfileBasics(Map<String, dynamic>? member) {
+    if (member == null) return false;
+    final name = '${member['fullName'] ?? ''}'.trim();
+    final pin = '${member['pincode'] ?? ''}'.trim();
+    final stateId = '${member['stateId'] ?? ''}'.trim();
+    return name.length >= 2 && RegExp(r'^\d{6}$').hasMatch(pin) && stateId.isNotEmpty;
+  }
+
+  bool get hasCompleteProfileBasics => hasProfileBasics(member);
+
+  static bool hasActionProfile(Map<String, dynamic>? member) {
+    if (!hasProfileBasics(member)) return false;
+    return '${member?['assemblyId'] ?? ''}'.trim().isNotEmpty;
+  }
+
+  bool get canUseMemberActions => hasActionProfile(member);
+
   String get joinRoute => hive.joinStep1Complete ? Routes.boothSelect : Routes.memberStatus;
 
-  String get postAuthRoute {
-    if (isVerified(member)) return Routes.shell;
-    return joinRoute;
+  String get postAuthRoute => hasCompleteProfileBasics ? Routes.shell : Routes.profileBasics;
+
+  void openHome() {
+    shellIndex.value = 0;
+    Get.offAllNamed(hasCompleteProfileBasics ? Routes.shell : Routes.profileBasics);
   }
 
   void openPostAuth() {
@@ -113,10 +136,7 @@ class SessionController extends GetxController {
 
   void openJoinVerification() => Get.toNamed(joinRoute);
 
-  void saveAndExitJoin() {
-    shellIndex.value = 0;
-    Get.offAllNamed(Routes.shell);
-  }
+  void saveAndExitJoin() => openHome();
 
   bool guardVerifiedAccess() {
     if (!needsVerification) return true;
@@ -124,20 +144,59 @@ class SessionController extends GetxController {
     return false;
   }
 
+  bool guardCreatePost() => guardMemberActions();
+
+  bool guardMemberActions() {
+    if (canUseMemberActions) return true;
+    showCompleteProfileDialog();
+    return false;
+  }
+
+  Future<void> applyAuthData(Map<String, dynamic> data) async {
+    if (data['tokens'] is Map) {
+      final tokens = Map<String, dynamic>.from(data['tokens'] as Map);
+      final access = '${tokens['accessToken'] ?? ''}';
+      final refresh = '${tokens['refreshToken'] ?? ''}';
+      if (access.isNotEmpty && refresh.isNotEmpty) {
+        await hive.saveTokens(access: access, refresh: refresh);
+      }
+    }
+    final member = data['member'] is Map
+        ? Map<String, dynamic>.from(data['member'] as Map)
+        : <String, dynamic>{};
+    if (data.containsKey('verified')) member['verified'] = data['verified'];
+    if (data.containsKey('verifyStatus')) {
+      member['verifyStatus'] = data['verifyStatus'];
+    } else if (member['verifyStatus'] == null && member['status'] != null) {
+      member['verifyStatus'] = member['status'];
+    }
+    if (data.containsKey('isNewMember')) member['isNewMember'] = data['isNewMember'];
+    if (data['post'] != null) member['post'] = data['post'];
+    if (member.isEmpty) return;
+    final previousPost = '${hive.profile?['post'] ?? ''}';
+    await hive.mergeProfile(member);
+    profile.value = Map<String, dynamic>.from(hive.profile ?? {});
+    profile.refresh();
+    final nextPost = '${profile.value?['post'] ?? ''}';
+    if (nextPost.isNotEmpty && nextPost != previousPost && data['tokens'] is! Map) {
+      await api.refreshAccessToken(expireOnFail: false);
+    }
+  }
+
   Future<void> verifyOtp(String mobile, String code) async {
     api.signedOut = false;
-    final res = await api.post('/auth/otp/verify', data: {'mobile': mobile, 'code': code});
+    final fcmToken = Get.isRegistered<PushService>() ? Get.find<PushService>().token.value : null;
+    final res = await api.post('/auth/otp/verify', data: {
+      'mobile': mobile,
+      'code': code,
+      if (fcmToken != null && fcmToken.isNotEmpty) 'fcmToken': fcmToken,
+    });
     final data = Map<String, dynamic>.from(res['data'] as Map);
-    final tokens = Map<String, dynamic>.from(data['tokens'] as Map);
-    await hive.saveTokens(access: tokens['accessToken'] as String, refresh: tokens['refreshToken'] as String);
-    final member = Map<String, dynamic>.from(data['member'] as Map);
-    member['verified'] = data['verified'] ?? member['verified'];
-    member['verifyStatus'] = data['verifyStatus'] ?? member['verifyStatus'] ?? member['status'];
-    await hive.saveProfile(member);
-    profile.value = member;
+    await applyAuthData(data);
+    final saved = member ?? {};
     final isNew = data['isNewMember'] == true ||
-        member['status'] == 'DRAFT' ||
-        (member['fullName'] as String?)?.trim().isEmpty == true;
+        saved['status'] == 'DRAFT' ||
+        (saved['fullName'] as String?)?.trim().isEmpty == true;
     if (isNew) {
       final draftMobile = (hive.draft.get('mobile') as String?)?.replaceAll(RegExp(r'\D'), '') ?? '';
       final digits = mobile.replaceAll(RegExp(r'\D'), '');
@@ -147,6 +206,9 @@ class SessionController extends GetxController {
         await hive.clearJoinDraft();
       }
       await hive.draft.put('mobile', mobile);
+    }
+    if (Get.isRegistered<PushService>()) {
+      unawaited(Get.find<PushService>().syncToken());
     }
     openPostAuth();
   }
@@ -158,11 +220,7 @@ class SessionController extends GetxController {
     try {
       final res = await api.get('/auth/me');
       final data = Map<String, dynamic>.from(res['data'] as Map);
-      final member = Map<String, dynamic>.from(data['member'] as Map);
-      member['verified'] = data['verified'] ?? member['verified'];
-      member['verifyStatus'] = data['verifyStatus'] ?? member['verifyStatus'] ?? member['status'];
-      await hive.saveProfile(member);
-      profile.value = member;
+      await applyAuthData(data);
       return true;
     } on DioException catch (e, stack) {
       if (e.response?.statusCode == 401) return false;
@@ -186,6 +244,8 @@ class SessionController extends GetxController {
 
   Future<void> loadHome() async {
     if (!hasSession) return;
+    await refreshMe();
+    if (!hasSession) return;
     try {
       final res = await api.get('/home');
       home.value = Map<String, dynamic>.from(res['data'] as Map);
@@ -195,14 +255,30 @@ class SessionController extends GetxController {
       }
     }
     if (!hasSession) return;
+    await refreshUnreadNotifications();
     final stamp = '${home.value?['issuesTimestamp'] ?? ''}'.trim();
     if (!hive.issuesMatchServer(stamp.isEmpty ? null : stamp)) {
       await syncPostIssues(force: true, serverTimestamp: stamp.isEmpty ? null : stamp);
     }
     await syncPendingPosts();
+    await syncPendingActivities();
     await refreshRegionPosts();
     promptActivityEvent();
     promptEngagement();
+  }
+
+  Future<void> refreshUnreadNotifications() async {
+    if (!hasSession) {
+      unreadNotifications.value = 0;
+      return;
+    }
+    try {
+      unreadNotifications.value = await fetchUnreadNotificationCount();
+    } catch (e, stack) {
+      if (!api.signedOut) {
+        AppLog.error('unread notifications failed', error: e, stack: stack, tag: 'NOTIF');
+      }
+    }
   }
 
   void clearActivityEventPrompt() {
@@ -293,10 +369,16 @@ class SessionController extends GetxController {
     return byId.values.toList()..sort(comparePostsByIssuePriority);
   }
 
-  List<Map<String, dynamic>> myPosts() => visiblePosts().where(hive.isOwnPost).toList();
+  bool _isUnderMyPost(Map<String, dynamic> post) {
+    return post['showResolve'] == true || post['canResolve'] == true;
+  }
+
+  List<Map<String, dynamic>> myPosts() {
+    return visiblePosts().where((post) => hive.isOwnPost(post) || _isUnderMyPost(post)).toList();
+  }
 
   List<Map<String, dynamic>> otherPosts() {
-    return visiblePosts().where((post) => post['pending'] != true && !hive.isOwnPost(post)).toList();
+    return visiblePosts().where((post) => post['pending'] != true && !hive.isOwnPost(post) && !_isUnderMyPost(post)).toList();
   }
 
   List<Map<String, dynamic>> recentRegionalPosts({int limit = 4}) {
@@ -358,6 +440,8 @@ class SessionController extends GetxController {
           description: '${item['description'] ?? ''}',
           issueId: '${item['issueId'] ?? ''}'.isEmpty ? null : '${item['issueId']}',
           issueCode: '${item['issueCode'] ?? ''}'.isEmpty ? null : '${item['issueCode']}',
+          subIssueId: '${item['subIssueId'] ?? ''}'.isEmpty ? null : '${item['subIssueId']}',
+          subIssueCode: '${item['subIssueCode'] ?? ''}'.isEmpty ? null : '${item['subIssueCode']}',
           latitude: (item['latitude'] as num?)?.toDouble(),
           longitude: (item['longitude'] as num?)?.toDouble(),
           districtId: item['districtId'],
@@ -377,6 +461,50 @@ class SessionController extends GetxController {
     }
     syncCount.value = hive.pendingSync().length;
     postsTick.value++;
+  }
+
+  static const _activityTypes = {
+    'MEETING',
+    'ADD_MEMBER',
+    'GRIHA_SAMPARK',
+    'PUBLIC_PROGRAMME',
+    'TRAINING',
+    'OTHER',
+  };
+
+  Future<void> syncPendingActivities({bool throwOnError = false}) async {
+    Object? lastError;
+    final pending = hive.pendingSync().where((item) => _activityTypes.contains('${item['type'] ?? ''}'));
+    for (final item in pending) {
+      final id = '${item['id'] ?? item['clientUuid'] ?? ''}';
+      if (id.isEmpty) continue;
+      final occurred = DateTime.tryParse('${item['occurredAt'] ?? item['createdAt'] ?? ''}') ?? DateTime.now();
+      final booth = member?['booth'] as Map?;
+      final boothId = item['boothId'] ?? booth?['id'] ?? hive.draft.get('boothId');
+      try {
+        await api.post('/activities', data: {
+          'clientUuid': '${item['clientUuid'] ?? id}',
+          'type': item['type'],
+          if (boothId != null) 'boothId': boothId,
+          'occurredAt': occurred.toUtc().toIso8601String(),
+          if ('${item['notes'] ?? item['placeName'] ?? ''}'.trim().isNotEmpty)
+            'notes': '${item['notes'] ?? item['placeName']}'.trim(),
+          if ((item['latitude'] as num?) != null) 'latitude': (item['latitude'] as num).toDouble(),
+          if ((item['longitude'] as num?) != null) 'longitude': (item['longitude'] as num).toDouble(),
+        });
+        await hive.removeSync(id);
+      } catch (e, stack) {
+        lastError = e;
+        AppLog.error('Pending activity sync failed', error: e, stack: stack, tag: 'ACTIVITY');
+      }
+    }
+    syncCount.value = hive.pendingSync().length;
+    if (throwOnError && lastError != null) throw lastError;
+  }
+
+  Future<void> syncPending() async {
+    await syncPendingPosts();
+    await syncPendingActivities(throwOnError: true);
   }
 
   Future<bool> captureLocation() async {
@@ -500,16 +628,21 @@ class SessionController extends GetxController {
     }
   }
 
-  Future<void> signOut() async {
+  Future<void> signOut({bool notifyServer = true}) async {
+    if (notifyServer) unawaited(api.logoutRemote());
     api.signedOut = true;
     await hive.clearSession();
     profile.value = null;
     home.value = null;
+    unreadNotifications.value = 0;
     regionPosts.clear();
     _engagementShown = false;
     _activityEventShown = false;
     shellIndex.value = 0;
-    if (Get.currentRoute != Routes.mobile) {
+    if (Get.isRegistered<PushService>()) {
+      unawaited(Get.find<PushService>().rotateToken());
+    }
+    if (Get.context != null && Get.currentRoute != Routes.mobile) {
       Get.offAllNamed(Routes.mobile);
     }
   }

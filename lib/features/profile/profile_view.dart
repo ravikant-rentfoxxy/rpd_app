@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import '../../core/routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/api_error.dart';
 import '../../core/utils/app_log.dart';
@@ -9,10 +10,12 @@ import '../../core/utils/local_image.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/models/booth.dart';
 import '../../data/remote/api_client.dart';
+import '../../data/remote/pincode_api.dart';
 import '../join/join_chrome.dart';
 import '../session/profile_photo_sheet.dart';
 import '../card/membership_card_view.dart';
 import '../session/session_controller.dart';
+import '../../core/widgets/flash.dart';
 
 class _GeoOption {
   const _GeoOption({required this.id, required this.name});
@@ -52,7 +55,21 @@ class _ProfileViewState extends State<ProfileView> {
     final session = Get.find<SessionController>();
     return Scaffold(
       backgroundColor: HomeColors.paper,
-      appBar: OrganicAppBar(title: 'profile'.trFallback('Profile')),
+      appBar: OrganicAppBar(
+        title: 'edit_profile'.trFallback('Edit profile'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: TextButton(
+              onPressed: showMembershipCardOverlay,
+              child: Text(
+                'card'.trFallback('Card'),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: Obx(() {
         session.profile.value;
         return ListView(
@@ -90,6 +107,21 @@ class _ProfileViewState extends State<ProfileView> {
                         ),
                       ),
                     ),
+                    if (!session.canUseMemberActions)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            color: HomeColors.muted2,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: HomeColors.paper, width: 3),
+                          ),
+                          child: const Icon(Icons.priority_high_rounded, size: 14, color: Colors.white),
+                        ),
+                      ),
                     Positioned(
                       right: 0,
                       bottom: 0,
@@ -198,6 +230,7 @@ class _ProfileViewState extends State<ProfileView> {
               keyboard: TextInputType.number,
               digitsOnly: true,
               maxLength: 6,
+              onChanged: c.onPincodeChanged,
             ),
             Obx(
               () => AppSelect<String>(
@@ -206,7 +239,8 @@ class _ProfileViewState extends State<ProfileView> {
                 icon: Icons.map_outlined,
                 value: c.states.any((s) => s.id == c.stateId.value) ? c.stateId.value : null,
                 items: c.states.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))).toList(),
-                loading: c.loadingStates.value,
+                loading: c.loadingStates.value || c.lookingUpPin.value,
+                enabled: false,
                 onChanged: c.onStateChanged,
               ),
             ),
@@ -234,17 +268,19 @@ class _ProfileViewState extends State<ProfileView> {
                 onChanged: c.onAssemblyChanged,
               ),
             ),
-            const SizedBox(height: 8),
-            Obx(
-              () => PrimaryButton(
-                c.saving.value ? '…' : 'save_changes'.trFallback('Save changes'),
-                enabled: !c.saving.value,
-                onTap: c.save,
-              ),
-            ),
           ],
         );
       }),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Obx(
+          () => PrimaryButton(
+            c.saving.value ? '…' : 'save_changes'.trFallback('Save changes'),
+            enabled: !c.saving.value && !c.geoLoading,
+            onTap: c.save,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -270,9 +306,14 @@ class _ProfileController extends GetxController {
   final assemblyId = RxnString();
   final boothId = RxnString();
   final loadingStates = false.obs;
+  final lookingUpPin = false.obs;
   final loadingDistricts = false.obs;
+  var _pinLookup = 0;
   final loadingAssemblies = false.obs;
   final saving = false.obs;
+
+  bool get geoLoading =>
+      loadingStates.value || lookingUpPin.value || loadingDistricts.value || loadingAssemblies.value;
 
   Map<String, dynamic> get member => session.member ?? {};
 
@@ -300,8 +341,23 @@ class _ProfileController extends GetxController {
     districtId.value = _id(member['districtId']);
     assemblyId.value = _id(member['assemblyId']);
     boothId.value = _id(member['boothId']);
-    session.refreshMe();
-    loadStates();
+    _seedGeoFromMember();
+    session.captureLocation();
+    if (stateId.value != null) loadDistricts(silent: true);
+  }
+
+  void _seedGeoFromMember() {
+    final sid = stateId.value;
+    final sname = '${member['stateName'] ?? ''}'.trim();
+    if (sid != null && sname.isNotEmpty) states.assignAll([_GeoOption(id: sid, name: sname)]);
+
+    final did = districtId.value;
+    final dname = '${member['districtName'] ?? ''}'.trim();
+    if (did != null && dname.isNotEmpty) districts.assignAll([_GeoOption(id: did, name: dname)]);
+
+    final aid = assemblyId.value;
+    final aname = '${member['assemblyName'] ?? ''}'.trim();
+    if (aid != null && aname.isNotEmpty) assemblies.assignAll([_GeoOption(id: aid, name: aname)]);
   }
 
   @override
@@ -330,29 +386,13 @@ class _ProfileController extends GetxController {
         .toList();
   }
 
-  Future<void> loadStates() async {
-    loadingStates.value = true;
-    try {
-      final res = await api.get('/geo/states');
-      states.assignAll(_options(res, 'states'));
-      if (stateId.value != null && !states.any((s) => s.id == stateId.value)) {
-        stateId.value = null;
-      }
-      if (stateId.value != null) await loadDistricts();
-    } catch (e, stack) {
-      AppLog.error('profile loadStates failed', error: e, stack: stack, tag: 'PROFILE');
-    } finally {
-      loadingStates.value = false;
-    }
-  }
-
-  Future<void> loadDistricts() async {
+  Future<void> loadDistricts({bool silent = false}) async {
     final id = stateId.value;
     if (id == null) {
       districts.clear();
       return;
     }
-    loadingDistricts.value = true;
+    if (!silent) loadingDistricts.value = true;
     try {
       final res = await api.get('/geo/districts', query: {'stateId': id});
       districts.assignAll(_options(res, 'districts'));
@@ -360,21 +400,21 @@ class _ProfileController extends GetxController {
         districtId.value = null;
         assemblies.clear();
       }
-      if (districtId.value != null) await loadAssemblies();
+      if (districtId.value != null) await loadAssemblies(silent: silent);
     } catch (e, stack) {
       AppLog.error('profile loadDistricts failed', error: e, stack: stack, tag: 'PROFILE');
     } finally {
-      loadingDistricts.value = false;
+      if (!silent) loadingDistricts.value = false;
     }
   }
 
-  Future<void> loadAssemblies() async {
+  Future<void> loadAssemblies({bool silent = false}) async {
     final id = districtId.value;
     if (id == null) {
       assemblies.clear();
       return;
     }
-    loadingAssemblies.value = true;
+    if (!silent) loadingAssemblies.value = true;
     try {
       final res = await api.get('/geo/assemblies', query: {'districtId': id});
       assemblies.assignAll(_options(res, 'assemblies'));
@@ -382,11 +422,10 @@ class _ProfileController extends GetxController {
         assemblyId.value = null;
         boothId.value = null;
       }
-      if (assemblyId.value != null) await _assignBoothForAssembly();
     } catch (e, stack) {
       AppLog.error('profile loadAssemblies failed', error: e, stack: stack, tag: 'PROFILE');
     } finally {
-      loadingAssemblies.value = false;
+      if (!silent) loadingAssemblies.value = false;
     }
   }
 
@@ -416,6 +455,43 @@ class _ProfileController extends GetxController {
     if (id != null) await loadDistricts();
   }
 
+  void onPincodeChanged(String value) {
+    lookupStateFromPincode(value);
+  }
+
+  Future<void> lookupStateFromPincode(String value, {bool announce = true}) async {
+    final pin = value.trim();
+    final token = ++_pinLookup;
+    if (pin.length != 6) return;
+    lookingUpPin.value = true;
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      if (token != _pinLookup) return;
+      final hit = await lookupPincode(pin);
+      if (token != _pinLookup) return;
+      final id = pincodeStateId(hit);
+      final name = pincodeStateName(hit);
+      if (id == null) {
+        if (announce) {
+          flash('Error', name.isEmpty ? 'pincode_invalid'.tr : 'pincode_state_unknown'.trParams({'state': name}));
+        }
+        return;
+      }
+      if (!states.any((s) => s.id == id) && name.isNotEmpty) {
+        states.add(_GeoOption(id: id, name: name));
+      }
+      if (states.any((s) => s.id == id) && stateId.value != id) {
+        await onStateChanged(id);
+      }
+    } catch (e, stack) {
+      if (token != _pinLookup) return;
+      AppLog.error('profile pincode lookup failed', error: e, stack: stack, tag: 'PROFILE');
+      if (announce) flash('Error', apiErrorMessage(e));
+    } finally {
+      if (token == _pinLookup) lookingUpPin.value = false;
+    }
+  }
+
   Future<void> onDistrictChanged(String? id) async {
     districtId.value = id;
     assemblyId.value = null;
@@ -432,25 +508,29 @@ class _ProfileController extends GetxController {
 
   Future<void> save() async {
     if (name.text.trim().length < 2) {
-      Get.snackbar('Error', 'enter_name'.tr);
+      flash('Error', 'enter_name'.tr);
       return;
     }
     final epic = voterId.text.trim().toUpperCase();
     if (epic.isNotEmpty && !RegExp(r'^[A-Z]{3}[0-9]{7}$').hasMatch(epic)) {
-      Get.snackbar('Error', 'voter_id_invalid'.trFallback('Enter a valid voter ID card number'));
+      flash('Error', 'voter_id_invalid'.trFallback('Enter a valid voter ID card number'));
       return;
     }
     if (!isValidDob(dob.text)) {
-      Get.snackbar('Error', 'dob_invalid'.tr);
+      flash('Error', 'dob_invalid'.tr);
       return;
     }
     final pin = pincode.text.trim();
-    if (pin.isNotEmpty && !RegExp(r'^\d{6}$').hasMatch(pin)) {
-      Get.snackbar('Error', 'pincode_invalid'.tr);
+    if (!RegExp(r'^\d{6}$').hasMatch(pin)) {
+      flash('Error', 'pincode_invalid'.tr);
       return;
     }
-    if (stateId.value == null || districtId.value == null || assemblyId.value == null) {
-      Get.snackbar('Error', 'complete_steps'.tr);
+    if (stateId.value == null) {
+      flash('Error', 'select_state'.tr);
+      return;
+    }
+    if (assemblyId.value == null) {
+      flash('Error', 'select_assembly'.tr);
       return;
     }
     saving.value = true;
@@ -462,10 +542,19 @@ class _ProfileController extends GetxController {
         'address': address.text.trim(),
         'pincode': pin,
         'voterId': epic,
-        'assemblyId': assemblyId.value,
+        'stateId': stateId.value,
+        if (assemblyId.value != null) 'assemblyId': assemblyId.value,
         if (boothId.value != null) 'boothId': boothId.value,
+        if (session.lat.value != null && session.lng.value != null) 'latitude': session.lat.value,
+        if (session.lat.value != null && session.lng.value != null) 'longitude': session.lng.value,
       });
-      Get.snackbar(
+      final fromGate = Get.arguments is Map && Get.arguments['openProfileAfterSave'] == true;
+      if (fromGate) {
+        Get.offNamed(Routes.profile);
+      } else {
+        Get.back();
+      }
+      flash(
         'saved'.tr,
         'profile_saved'.trFallback('Your details were saved.'),
         snackPosition: SnackPosition.BOTTOM,
@@ -476,7 +565,7 @@ class _ProfileController extends GetxController {
       );
     } catch (e, stack) {
       AppLog.error('update profile failed', error: e, stack: stack, tag: 'PROFILE');
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     } finally {
       saving.value = false;
     }

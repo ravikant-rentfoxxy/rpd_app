@@ -6,6 +6,7 @@ import '../../core/utils/api_error.dart';
 import '../../core/widgets/ui.dart';
 import '../join/join_chrome.dart';
 import 'activity_event_api.dart';
+import '../../core/widgets/flash.dart';
 
 class ActivityEventPlayView extends StatefulWidget {
   const ActivityEventPlayView({super.key});
@@ -48,7 +49,7 @@ class _ActivityEventPlayViewState extends State<ActivityEventPlayView> {
         selectedId = '${fresh['optionId'] ?? ''}'.trim().isEmpty ? null : '${fresh['optionId']}';
       });
     } catch (e) {
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -57,7 +58,7 @@ class _ActivityEventPlayViewState extends State<ActivityEventPlayView> {
   Future<void> _submit() async {
     final optionId = selectedId;
     if (optionId == null) {
-      Get.snackbar('Error', 'activity_event_pick'.trFallback('Choose Yes or No'));
+      flash('Error', 'activity_event_pick'.trFallback('Choose Yes or No'));
       return;
     }
     setState(() => submitting = true);
@@ -66,7 +67,7 @@ class _ActivityEventPlayViewState extends State<ActivityEventPlayView> {
       if (!mounted) return;
       setState(() => event = fresh);
     } catch (e) {
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => submitting = false);
     }

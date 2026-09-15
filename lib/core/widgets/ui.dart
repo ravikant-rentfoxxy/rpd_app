@@ -332,23 +332,26 @@ class AppSelect<T> extends StatelessWidget {
                   ),
                 ),
                 DropdownButtonHideUnderline(
-                  child: DropdownButton<T>(
-                    value: value,
-                    isExpanded: true,
-                    isDense: true,
-                    hint: hint == null
-                        ? null
-                        : Text(hint!, style: TextStyle(color: verifyStyle ? const Color(0xFFB3ACB8) : AppColors.ink4, fontSize: 14)),
-                    icon: loading
-                        ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: verifyStyle ? VerifyColors.purple : AppColors.brand),
-                          )
-                        : Icon(Icons.keyboard_arrow_down_rounded, color: verifyStyle ? VerifyColors.gray : AppColors.ink3),
-                    items: items,
-                    onChanged: enabled && !loading ? onChanged : null,
-                    style: const TextStyle(fontSize: 16, color: AppColors.ink),
+                  child: Theme(
+                    data: Theme.of(context).copyWith(disabledColor: AppColors.ink),
+                    child: DropdownButton<T>(
+                      value: value,
+                      isExpanded: true,
+                      isDense: true,
+                      hint: hint == null
+                          ? null
+                          : Text(hint!, style: TextStyle(color: verifyStyle ? const Color(0xFFB3ACB8) : AppColors.ink4, fontSize: 14)),
+                      icon: loading
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: verifyStyle ? VerifyColors.purple : AppColors.brand),
+                            )
+                          : Icon(Icons.keyboard_arrow_down_rounded, color: verifyStyle ? VerifyColors.gray : AppColors.ink3),
+                      items: items,
+                      onChanged: enabled && !loading ? onChanged : null,
+                      style: const TextStyle(fontSize: 16, color: AppColors.ink),
+                    ),
                   ),
                 ),
               ],
@@ -716,6 +719,100 @@ class _ChoiceChip extends StatelessWidget {
   }
 }
 
+class LoginMobileField extends StatefulWidget {
+  const LoginMobileField({
+    super.key,
+    required this.controller,
+    this.readOnly = false,
+    this.onChanged,
+  });
+  final TextEditingController controller;
+  final bool readOnly;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  State<LoginMobileField> createState() => _LoginMobileFieldState();
+}
+
+class _LoginMobileFieldState extends State<LoginMobileField> {
+  late final FocusNode _focus;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus = FocusNode()..addListener(_rebuild);
+    widget.controller.addListener(_rebuild);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_rebuild);
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _rebuild() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    final digits = widget.controller.text.replaceAll(RegExp(r'\D'), '');
+    final remaining = List.filled((10 - digits.length).clamp(0, 10), '•').join();
+    return GestureDetector(
+      onTap: widget.readOnly ? null : () => _focus.requestFocus(),
+      child: Container(
+        height: 56,
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 22),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        alignment: Alignment.centerLeft,
+        child: Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.1,
+                  height: 1,
+                ),
+                children: [
+                  const TextSpan(text: '+91 ', style: TextStyle(color: AppColors.ink, letterSpacing: 0.4)),
+                  TextSpan(text: digits, style: const TextStyle(color: AppColors.ink)),
+                  TextSpan(text: remaining, style: const TextStyle(color: Color(0xFFC8C2B8), fontWeight: FontWeight.w500)),
+                ],
+              ),
+            ),
+            Positioned.fill(
+              child: Opacity(
+                opacity: 0,
+                child: TextField(
+                  focusNode: _focus,
+                  controller: widget.controller,
+                  readOnly: widget.readOnly,
+                  enabled: !widget.readOnly,
+                  autofocus: !widget.readOnly,
+                  keyboardType: TextInputType.phone,
+                  maxLength: 10,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(10),
+                  ],
+                  onChanged: widget.onChanged,
+                  decoration: const InputDecoration(border: InputBorder.none, counterText: ''),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class OtpBoxes extends StatefulWidget {
   const OtpBoxes({
     super.key,
@@ -756,56 +853,62 @@ class _OtpBoxesState extends State<OtpBoxes> {
     final active = _focus.hasFocus ? value.length.clamp(0, widget.length - 1) : -1;
     return GestureDetector(
       onTap: () => _focus.requestFocus(),
-      child: Stack(
-        children: [
-          Row(
-            children: List.generate(widget.length, (index) {
-              final digit = index < value.length ? value[index] : '';
-              final isActive = index == active;
-              return Expanded(
-                child: Container(
-                  height: 52,
-                  margin: EdgeInsets.only(right: index == widget.length - 1 ? 0 : 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: isActive ? const Color(0xFFEF8120) : Colors.white,
-                      width: isActive ? 2 : 1,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const gap = 10.0;
+          final size = ((constraints.maxWidth - gap * (widget.length - 1)) / widget.length).clamp(44.0, 56.0);
+          return Stack(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(widget.length, (index) {
+                  final digit = index < value.length ? value[index] : '';
+                  final isActive = index == active;
+                  return Container(
+                    width: size,
+                    height: size,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isActive ? HomeColors.orange : Colors.white,
+                        width: isActive ? 2 : 0,
+                      ),
                     ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    digit,
-                    style: GoogleFonts.ibmPlexMono(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.ink,
+                    alignment: Alignment.center,
+                    child: Text(
+                      digit,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink,
+                        height: 1,
+                      ),
                     ),
+                  );
+                }),
+              ),
+              Positioned.fill(
+                child: Opacity(
+                  opacity: 0,
+                  child: TextField(
+                    focusNode: _focus,
+                    controller: widget.controller,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    maxLength: widget.length,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(widget.length),
+                    ],
+                    onChanged: widget.onChanged,
+                    decoration: const InputDecoration(border: InputBorder.none, counterText: ''),
                   ),
                 ),
-              );
-            }),
-          ),
-          Positioned.fill(
-            child: Opacity(
-              opacity: 0,
-              child: TextField(
-                focusNode: _focus,
-                controller: widget.controller,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                maxLength: widget.length,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(widget.length),
-                ],
-                onChanged: widget.onChanged,
-                decoration: const InputDecoration(border: InputBorder.none, counterText: ''),
               ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -924,6 +1027,8 @@ class OrganicAppBar extends StatelessWidget implements PreferredSizeWidget {
         foregroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         automaticallyImplyLeading: automaticallyImplyLeading,
         leading: leading,
         title: Text(

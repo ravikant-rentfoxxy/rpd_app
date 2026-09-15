@@ -4,9 +4,11 @@ import 'package:get/get.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/api_error.dart';
+import '../../core/widgets/empty_card.dart';
 import '../../core/widgets/ui.dart';
 import '../join/join_chrome.dart';
 import 'activity_event_api.dart';
+import '../../core/widgets/flash.dart';
 
 class ActivityEventsListView extends StatefulWidget {
   const ActivityEventsListView({super.key});
@@ -36,7 +38,7 @@ class _ActivityEventsListViewState extends State<ActivityEventsListView> {
           ..addAll(list);
       });
     } catch (e) {
-      Get.snackbar('Error', apiErrorMessage(e));
+      flash('Error', apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -66,11 +68,12 @@ class _ActivityEventsListViewState extends State<ActivityEventsListView> {
                   ? ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: [
-                        const SizedBox(height: 80),
-                        Center(
-                          child: Text(
-                            'activity_events_empty'.trFallback('No activity events right now.'),
-                            style: const TextStyle(color: HomeColors.muted),
+                        const SizedBox(height: 48),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: AppEmptyCard(
+                            icon: Icons.campaign_outlined,
+                            title: 'activity_events_empty'.trFallback('No activity events right now.'),
                           ),
                         ),
                       ],
