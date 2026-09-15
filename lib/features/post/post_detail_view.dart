@@ -119,7 +119,12 @@ class _PostDetailViewState extends State<PostDetailView> {
         flash('Error', 'summary_empty'.trFallback('Could not create a summary'));
         return;
       }
-      await showPostSummarySheet(context: context, summary: summary);
+      setState(() => summarising = false);
+      await showPostSummarySheet(
+        context: context,
+        summary: summary,
+        onRegenerate: () => summariseRegionPost(data),
+      );
     } catch (e, stack) {
       AppLog.error('Summarise post failed', error: e, stack: stack, tag: 'POST');
       flash('Error', apiErrorMessage(e));
@@ -226,15 +231,9 @@ class _PostDetailViewState extends State<PostDetailView> {
                           height: 48,
                           child: OutlinedButton.icon(
                             onPressed: summarising ? null : _summarise,
-                            icon: summarising
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2.2, color: HomeColors.orange),
-                                  )
-                                : const Icon(Icons.auto_awesome_rounded, size: 18),
+                            icon: AiSparkleIcon(animating: summarising),
                             label: Text(
-                              'get_summary'.trFallback('Draft for X'),
+                              'get_summary'.trFallback('Summary by AI'),
                               style: const TextStyle(fontWeight: FontWeight.w800),
                             ),
                             style: OutlinedButton.styleFrom(

@@ -93,7 +93,12 @@ class _GrievanceViewState extends State<GrievanceView> {
         flash('Error', 'summary_empty'.trFallback('Could not create a summary'));
         return;
       }
-      await showPostSummarySheet(context: context, summary: summary);
+      summarisingId.value = '';
+      await showPostSummarySheet(
+        context: context,
+        summary: summary,
+        onRegenerate: () => summariseRegionPost(post),
+      );
     } catch (e) {
       flash('Error', apiErrorMessage(e));
     } finally {
@@ -154,15 +159,9 @@ class _GrievanceViewState extends State<GrievanceView> {
                         if (canSummarise)
                           TextButton.icon(
                             onPressed: summarising ? null : () => _summarise(post),
-                            icon: summarising
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: HomeColors.orange),
-                                  )
-                                : const Icon(Icons.auto_awesome_rounded, size: 18),
+                            icon: AiSparkleIcon(animating: summarising),
                             label: Text(
-                              'get_summary'.trFallback('Draft for X'),
+                              'get_summary'.trFallback('Summary by AI'),
                               style: const TextStyle(fontWeight: FontWeight.w800),
                             ),
                             style: TextButton.styleFrom(foregroundColor: HomeColors.orange),

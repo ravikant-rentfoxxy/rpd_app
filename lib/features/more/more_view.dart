@@ -64,7 +64,6 @@ class MoreView extends StatelessWidget {
               onTap: () => Get.toNamed(Routes.activityHub),
               child: CardTitle('record_activity'.tr, sub: 'record_activity_sub'.tr),
             ),
-          AppCard(onTap: () => Get.toNamed(Routes.meeting), child: CardTitle('booth_meeting'.tr)),
           AppCard(
             child: Row(
               children: [

@@ -6,7 +6,6 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import '../../core/routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/api_error.dart';
 import '../../core/utils/app_log.dart';
@@ -236,14 +235,11 @@ class _CreateEventViewState extends State<CreateEventView> {
       }
       await Get.find<SessionController>().loadHome();
       if (mounted) Get.back();
-      if (type == 'MEETING') {
-        Get.toNamed(Routes.meeting);
-      }
       Future<void>.delayed(const Duration(milliseconds: 250), () {
         flash(
           type == 'MEETING' ? 'meeting_created'.trFallback('Meeting created') : 'event_created'.trFallback('Event created'),
           type == 'MEETING'
-              ? 'scan_to_join_hint'.trFallback('Members scan this QR at the venue to join')
+              ? 'meeting_created_sub'.trFallback('Members can check in at the venue to join.')
               : 'event_created_sub'.trFallback('It now appears in Upcoming events for members below you in this region.'),
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: AppColors.ok,
