@@ -47,8 +47,10 @@ class HomeView extends StatelessWidget {
         session.postsTick.value;
         final nearbyPosts = session.recentRegionalPosts(limit: 4);
         final boothScore = (stats['boothScore'] ?? booth?['healthScore'] ?? 61) as num;
-        final rank = '${stats['mandalRank'] ?? 3}';
-        final size = '${stats['mandalSize'] ?? 42}';
+        // A member who is not verified yet is not placed on the board, so show 0
+        // rather than a position they have not earned.
+        final rank = session.needsVerification ? '0' : '${stats['mandalRank'] ?? 0}';
+        final size = '${stats['mandalSize'] ?? 0}';
         return ColoredBox(
           color: HomeColors.paper,
           child: RefreshIndicator(
@@ -65,7 +67,7 @@ class HomeView extends StatelessWidget {
                     name: _displayName(member),
                     photoUrl: memberPhotoRef(member),
                     initials: _initials(member['fullName'] as String?),
-                    score: boothScore,
+                    activities: (stats['activitiesThisMonth'] as num?) ?? 0,
                     unreadCount: session.unreadNotifications.value,
                   ),
                 ),
@@ -89,12 +91,13 @@ class HomeView extends StatelessWidget {
                       HomeEventsBanner(events: events),
                       HomeStatsRow(
                         members: '${stats['membersAdded'] ?? 0}',
-                        meetings: '${stats['meetingsHeld'] ?? 0}',
+                        events: '${stats['currentEvents'] ?? 0}',
                       ),
                       HomeLeaderboard(
                         rank: rank,
                         size: size,
                         score: boothScore,
+                        points: (stats['points'] as num?) ?? 0,
                         scope: '${stats['leaderboardScope'] ?? 'assembly'}',
                         area: '${stats['leaderboardArea'] ?? ''}',
                       ),
@@ -133,7 +136,7 @@ class _HomeHero extends StatelessWidget {
     required this.name,
     required this.photoUrl,
     required this.initials,
-    required this.score,
+    required this.activities,
     required this.unreadCount,
   });
 
@@ -142,7 +145,8 @@ class _HomeHero extends StatelessWidget {
   final String name;
   final String? photoUrl;
   final String initials;
-  final num score;
+  /// Activities this member recorded in the current calendar month.
+  final num activities;
   final int unreadCount;
 
   @override
@@ -267,39 +271,30 @@ class _HomeHero extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('community_score'.tr, style: const TextStyle(color: HomeColors.navyMuted, fontSize: 12)),
+                    Text(
+                      'activities_this_month'.tr,
+                      style: const TextStyle(color: HomeColors.navyMuted, fontSize: 12),
+                    ),
                     const SizedBox(height: 6),
-                    Text.rich(
-                      TextSpan(
-                        text: '${score.round()}',
-                        style: GoogleFonts.bricolageGrotesque(
-                          color: Colors.white,
-                          fontSize: 36,
-                          fontWeight: FontWeight.w500,
-                          height: 1,
-                        ),
-                        children: [
-                          TextSpan(
-                            text: '/100',
-                            style: GoogleFonts.archivo(
-                              color: HomeColors.navyMuted,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                    Text(
+                      '${activities.round()}',
+                      style: GoogleFonts.bricolageGrotesque(
+                        color: Colors.white,
+                        fontSize: 36,
+                        fontWeight: FontWeight.w500,
+                        height: 1,
                       ),
                     ),
                   ],
                 ),
               ),
               GestureDetector(
-                onTap: () => Get.toNamed(Routes.boothHealth),
+                onTap: () => Get.toNamed(Routes.districtHealth),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   decoration: BoxDecoration(color: HomeColors.orange, borderRadius: BorderRadius.circular(999)),
                   child: Text(
-                    'view_booth'.tr,
+                    'view_district'.tr,
                     style: GoogleFonts.bricolageGrotesque(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                 ),

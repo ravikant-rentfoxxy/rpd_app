@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart' show DioException;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -11,6 +12,7 @@ import '../../core/utils/api_error.dart';
 import '../../core/utils/app_log.dart';
 import '../../core/utils/local_image.dart';
 import '../../core/utils/open_url.dart';
+import '../../core/widgets/place_field.dart';
 import '../../core/widgets/ui.dart';
 import '../join/join_chrome.dart';
 import '../meeting/meeting_views.dart';
@@ -43,10 +45,14 @@ class _CreateEventViewState extends State<CreateEventView> {
   late final String type;
   final venue = TextEditingController();
   final notes = TextEditingController();
+  final durationHours = TextEditingController(text: '1');
+  final durationMins = TextEditingController(text: '0');
   String? photoPath;
   DateTime startsAt = DateTime.now().add(const Duration(hours: 2));
   bool submitting = false;
   bool verifying = false;
+  bool locating = false;
+  bool verifiedApproximate = false;
   String? verifiedQuery;
   String? verifiedDisplayName;
   double? verifiedLat;
@@ -54,6 +60,10 @@ class _CreateEventViewState extends State<CreateEventView> {
 
   String get typeLabel => 'activity_$type'.trFallback(type);
   bool get isMeeting => type == 'MEETING';
+  int get durationMinutes =>
+      (int.tryParse(durationHours.text.trim()) ?? 0) * 60 + (int.tryParse(durationMins.text.trim()) ?? 0);
+  DateTime get endsAt => startsAt.add(Duration(minutes: durationMinutes));
+
   bool get placeVerified =>
       verifiedLat != null && verifiedLng != null && verifiedQuery == venue.text.trim();
 
@@ -69,11 +79,13 @@ class _CreateEventViewState extends State<CreateEventView> {
     venue.removeListener(_onVenueChanged);
     venue.dispose();
     notes.dispose();
+    durationHours.dispose();
+    durationMins.dispose();
     super.dispose();
   }
 
   void _onVenueChanged() {
-    if (!isMeeting || !mounted) return;
+    if (!mounted) return;
     if (verifiedQuery == venue.text.trim()) return;
     if (verifiedLat == null && verifiedLng == null) return;
     setState(() {
@@ -81,6 +93,7 @@ class _CreateEventViewState extends State<CreateEventView> {
       verifiedDisplayName = null;
       verifiedLat = null;
       verifiedLng = null;
+      verifiedApproximate = false;
     });
   }
 
@@ -149,6 +162,21 @@ class _CreateEventViewState extends State<CreateEventView> {
     );
   }
 
+  void _setDuration(int minutes) {
+    setState(() {
+      durationHours.text = '${minutes ~/ 60}';
+      durationMins.text = '${minutes % 60}';
+    });
+  }
+
+  String? _durationError() {
+    final minutes = int.tryParse(durationMins.text.trim()) ?? 0;
+    if (minutes > 59) return 'duration_minutes_invalid'.trFallback('Minutes must be between 0 and 59');
+    if (durationMinutes < 5) return 'duration_too_short'.trFallback('Duration must be at least 5 minutes');
+    if (durationMinutes > 24 * 60) return 'duration_too_long'.trFallback('Duration cannot be more than 24 hours');
+    return null;
+  }
+
   Future<void> _pickDateTime() async {
     final picked = await showEventDateTimeSheet(initial: startsAt);
     if (!mounted || picked == null) return;
@@ -176,17 +204,82 @@ class _CreateEventViewState extends State<CreateEventView> {
         verifiedDisplayName = '${place['displayName'] ?? address}';
         verifiedLat = (place['latitude'] as num?)?.toDouble();
         verifiedLng = (place['longitude'] as num?)?.toDouble();
+        verifiedApproximate = place['approximate'] == true;
       });
       if (verifiedLat == null || verifiedLng == null) {
         flash('Error', 'place_not_found'.trFallback('Location not found'));
         return;
       }
-      flash('OK', 'place_verified'.trFallback('Address verified'));
+      if (!verifiedApproximate) flash('OK', 'place_verified'.trFallback('Address verified'));
     } catch (e, stack) {
-      AppLog.error('Verify place failed', error: e, stack: stack, tag: 'GEO');
-      flash('Error', apiErrorMessage(e));
+      if (e is DioException && e.response?.statusCode == 404) {
+        flash(
+          'place_not_found'.trFallback('Location not found'),
+          'place_not_found_hint'.trFallback('Check the spelling, add the area and city, or use your current location.'),
+        );
+      } else {
+        AppLog.error('Verify place failed', error: e, stack: stack, tag: 'GEO');
+        flash('Error', apiErrorMessage(e));
+      }
     } finally {
       if (mounted) setState(() => verifying = false);
+    }
+  }
+
+  /// Picking a suggestion already gives exact coordinates, so no address lookup is needed.
+  void _onPlacePicked(PlaceSuggestion place) {
+    setState(() {
+      verifiedQuery = place.displayName;
+      verifiedDisplayName = place.displayName;
+      verifiedLat = place.latitude;
+      verifiedLng = place.longitude;
+      verifiedApproximate = false;
+    });
+  }
+
+  /// For hosts standing at the venue: pin the event to the phone's GPS position.
+  Future<void> _useCurrentLocation() async {
+    final address = venue.text.trim();
+    if (address.length < 2) {
+      flash('Error', 'place_name_required'.tr);
+      return;
+    }
+    setState(() => locating = true);
+    try {
+      final session = Get.find<SessionController>();
+      final located = await session.captureLocation();
+      final lat = session.lat.value;
+      final lng = session.lng.value;
+      if (!mounted) return;
+      if (!located || lat == null || lng == null) {
+        flash(
+          'Error',
+          session.locationDenied.value
+              ? 'check_in_location_denied'.trFallback('Allow location access to continue')
+              : 'check_in_location_off'.trFallback('Turn on location to continue'),
+        );
+        return;
+      }
+      // Emulators report Mountain View, CA by default; a real venue must be inside India.
+      final inIndia = lat >= 6.4 && lat <= 37.6 && lng >= 68.1 && lng <= 97.5;
+      if (!inIndia) {
+        flash(
+          'Error',
+          'place_location_invalid'.trFallback('Your GPS location looks wrong (outside India). Turn on GPS and try again.'),
+        );
+        return;
+      }
+      setState(() {
+        verifiedQuery = address;
+        verifiedDisplayName =
+            '${'place_current_location'.trFallback('Your current location')} (${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)})';
+        verifiedLat = lat;
+        verifiedLng = lng;
+        verifiedApproximate = false;
+      });
+      flash('OK', 'place_pinned'.trFallback('Event pinned to your current location'));
+    } finally {
+      if (mounted) setState(() => locating = false);
     }
   }
 
@@ -213,15 +306,23 @@ class _CreateEventViewState extends State<CreateEventView> {
       flash('Error', 'event_future_required'.trFallback('Pick a future date and time'));
       return;
     }
+    final durationError = _durationError();
+    if (durationError != null) {
+      flash('Error', durationError);
+      return;
+    }
     setState(() => submitting = true);
     try {
       await createOrgEvent(
         type: type,
         title: typeLabel,
         startsAt: startsAt,
+        durationMinutes: durationMinutes,
         venue: venue.text.trim(),
         description: notes.text.trim(),
         imagePath: photoPath,
+        latitude: placeVerified ? verifiedLat : null,
+        longitude: placeVerified ? verifiedLng : null,
       );
       if (type == 'MEETING') {
         await createBoothMeetingRecord(
@@ -307,77 +408,109 @@ class _CreateEventViewState extends State<CreateEventView> {
                         ),
                         const Divider(height: 1, thickness: 0.5, color: _rowLine),
                         _FieldRow(
-                          mark: const Icon(Icons.place_outlined, size: 16, color: _orange),
-                          label: 'place_name'.tr,
-                          child: TextField(
-                            controller: venue,
-                            style: _valueStyle,
-                            decoration: _inputDecoration('place_name_hint'.tr),
+                          mark: const Icon(Icons.timelapse_rounded, size: 16, color: _orange),
+                          label: 'event_duration'.trFallback('Duration'),
+                          child: _DurationInput(
+                            hours: durationHours,
+                            minutes: durationMins,
+                            totalMinutes: durationMinutes,
+                            endsAt: endsAt,
+                            startsAt: startsAt,
+                            error: _durationError(),
+                            onChanged: () => setState(() {}),
+                            onPreset: _setDuration,
                           ),
                         ),
-                        if (isMeeting) ...[
-                          const Divider(height: 1, thickness: 0.5, color: _rowLine),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: SizedBox(
-                                        height: 42,
-                                        child: OutlinedButton(
-                                          onPressed: verifying ? null : _verifyPlace,
-                                          style: OutlinedButton.styleFrom(
-                                            foregroundColor: _navy,
-                                            side: const BorderSide(color: _cardLine),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(21)),
-                                          ),
-                                          child: Text(
-                                            verifying
-                                                ? '…'
-                                                : 'verify_place'.trFallback('Verify address'),
-                                            style: const TextStyle(fontWeight: FontWeight.w700),
-                                          ),
+                        const Divider(height: 1, thickness: 0.5, color: _rowLine),
+                        _FieldRow(
+                          mark: const Icon(Icons.place_outlined, size: 16, color: _orange),
+                          label: 'place_name'.tr,
+                          child: PlaceSuggestionsField(
+                            controller: venue,
+                            onSelected: _onPlacePicked,
+                            child: TextField(
+                              controller: venue,
+                              style: _valueStyle,
+                              decoration: _inputDecoration('place_name_hint'.tr),
+                            ),
+                          ),
+                        ),
+                        const Divider(height: 1, thickness: 0.5, color: _rowLine),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: SizedBox(
+                                      height: 42,
+                                      child: OutlinedButton.icon(
+                                        onPressed: verifying || locating ? null : _verifyPlace,
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: _navy,
+                                          side: const BorderSide(color: _cardLine),
+                                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(21)),
+                                        ),
+                                        icon: verifying
+                                            ? const SizedBox(
+                                                width: 14,
+                                                height: 14,
+                                                child: CircularProgressIndicator(strokeWidth: 2, color: _navy),
+                                              )
+                                            : const Icon(Icons.search_rounded, size: 17),
+                                        label: Text(
+                                          'verify_place'.trFallback('Verify address'),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontWeight: FontWeight.w700),
                                         ),
                                       ),
                                     ),
-                                    if (placeVerified) ...[
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: SizedBox(
-                                          height: 42,
-                                          child: FilledButton.icon(
-                                            onPressed: _openMaps,
-                                            style: FilledButton.styleFrom(
-                                              backgroundColor: _navy,
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(21)),
-                                              elevation: 0,
-                                            ),
-                                            icon: const Icon(Icons.navigation_rounded, size: 16),
-                                            label: Text(
-                                              'open_in_maps'.trFallback('Maps'),
-                                              style: const TextStyle(fontWeight: FontWeight.w700),
-                                            ),
-                                          ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: SizedBox(
+                                      height: 42,
+                                      child: OutlinedButton.icon(
+                                        onPressed: verifying || locating ? null : _useCurrentLocation,
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: _navy,
+                                          side: const BorderSide(color: _cardLine),
+                                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(21)),
+                                        ),
+                                        icon: locating
+                                            ? const SizedBox(
+                                                width: 14,
+                                                height: 14,
+                                                child: CircularProgressIndicator(strokeWidth: 2, color: _navy),
+                                              )
+                                            : const Icon(Icons.my_location_rounded, size: 16),
+                                        label: Text(
+                                          'use_my_location'.trFallback('Use my location'),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontWeight: FontWeight.w700),
                                         ),
                                       ),
-                                    ],
-                                  ],
-                                ),
-                                if (placeVerified) ...[
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    verifiedDisplayName ?? '',
-                                    style: const TextStyle(fontSize: 12, color: _muted, height: 1.35),
+                                    ),
                                   ),
                                 ],
+                              ),
+                              if (placeVerified) ...[
+                                const SizedBox(height: 10),
+                                _VerifiedPlace(
+                                  displayName: verifiedDisplayName ?? '',
+                                  approximate: verifiedApproximate,
+                                  onOpenMaps: _openMaps,
+                                ),
                               ],
-                            ),
+                            ],
                           ),
-                        ],
+                        ),
                         const Divider(height: 1, thickness: 0.5, color: _rowLine),
                         _FieldRow(
                           mark: const Icon(Icons.notes_rounded, size: 16, color: _orange),
@@ -716,6 +849,192 @@ class _SourceRow extends StatelessWidget {
               ),
               Icon(Icons.chevron_right_rounded, color: color.withValues(alpha: 0.7)),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VerifiedPlace extends StatelessWidget {
+  const _VerifiedPlace({required this.displayName, required this.approximate, required this.onOpenMaps});
+  final String displayName;
+  final bool approximate;
+  final VoidCallback onOpenMaps;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = approximate ? AppColors.warn : AppColors.ok;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+      decoration: BoxDecoration(
+        color: approximate ? AppColors.warnBg.withValues(alpha: 0.55) : AppColors.okBg.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(approximate ? Icons.warning_amber_rounded : Icons.verified_rounded, size: 17, color: tone),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  approximate
+                      ? 'place_approximate'.trFallback('Approximate location')
+                      : 'place_verified'.trFallback('Address verified'),
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: tone),
+                ),
+                const SizedBox(height: 2),
+                Text(displayName, style: const TextStyle(fontSize: 12, color: _muted, height: 1.35)),
+                if (approximate) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'place_approximate_hint'.trFallback(
+                      'Only the area was found, so check-in may fail at the venue. Fix the spelling or use your location at the venue.',
+                    ),
+                    style: const TextStyle(fontSize: 12, color: AppColors.warn, height: 1.35),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: onOpenMaps,
+            style: TextButton.styleFrom(foregroundColor: _navy, visualDensity: VisualDensity.compact),
+            child: Text('open_in_maps'.trFallback('Maps'), style: const TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DurationInput extends StatelessWidget {
+  const _DurationInput({
+    required this.hours,
+    required this.minutes,
+    required this.totalMinutes,
+    required this.startsAt,
+    required this.endsAt,
+    required this.error,
+    required this.onChanged,
+    required this.onPreset,
+  });
+  final TextEditingController hours;
+  final TextEditingController minutes;
+  final int totalMinutes;
+  final DateTime startsAt;
+  final DateTime endsAt;
+  final String? error;
+  final VoidCallback onChanged;
+  final ValueChanged<int> onPreset;
+
+  static const _presets = [30, 60, 120, 180];
+
+  String _presetLabel(int m) => m < 60 ? '$m min' : '${m ~/ 60} hr';
+
+  @override
+  Widget build(BuildContext context) {
+    final sameDay = startsAt.year == endsAt.year && startsAt.month == endsAt.month && startsAt.day == endsAt.day;
+    final endLabel = DateFormat(sameDay ? 'hh:mm a' : 'dd MMM · hh:mm a').format(endsAt);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            _DurationBox(controller: hours, unit: 'duration_hr'.trFallback('hr'), onChanged: onChanged),
+            const SizedBox(width: 10),
+            _DurationBox(controller: minutes, unit: 'duration_min'.trFallback('min'), onChanged: onChanged),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final preset in _presets)
+              _PresetChip(
+                label: _presetLabel(preset),
+                selected: totalMinutes == preset,
+                onTap: () => onPreset(preset),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          error ?? '${'event_ends_at'.trFallback('Ends at')} $endLabel',
+          style: TextStyle(fontSize: 12, color: error == null ? _muted : AppColors.bad, fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+  }
+}
+
+class _DurationBox extends StatelessWidget {
+  const _DurationBox({required this.controller, required this.unit, required this.onChanged});
+  final TextEditingController controller;
+  final String unit;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: _cream,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _cardLine),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 28,
+            child: TextField(
+              controller: controller,
+              onChanged: (_) => onChanged(),
+              onTap: () => controller.selection = TextSelection(baseOffset: 0, extentOffset: controller.text.length),
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
+              style: _valueStyle.copyWith(fontSize: 16, fontWeight: FontWeight.w700),
+              decoration: _inputDecoration('0'),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(unit, style: const TextStyle(fontSize: 13, color: _muted, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+}
+
+class _PresetChip extends StatelessWidget {
+  const _PresetChip({required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? _peach : Colors.white,
+      shape: StadiumBorder(side: BorderSide(color: selected ? _peachDash : _cardLine)),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: selected ? _orange : _navy),
           ),
         ),
       ),

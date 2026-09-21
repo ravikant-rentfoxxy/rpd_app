@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -116,6 +117,53 @@ class PrimaryButton extends StatelessWidget {
   }
 }
 
+/// Full-screen scrim with a spinner, for screens that must block input while a
+/// request runs.
+///
+/// Goes last in the screen's root [Stack], which must use [StackFit.expand].
+/// It deliberately avoids [Positioned]: call sites wrap this in an `Obx`, and a
+/// positioned widget has to be a direct child of the Stack to lay out at all.
+class ScreenLoader extends StatelessWidget {
+  const ScreenLoader({super.key, this.visible = true, this.message, this.onDark = true});
+  final bool visible;
+  final String? message;
+
+  /// Light spinner and text, for the navy login screens.
+  final bool onDark;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!visible) return const SizedBox.shrink();
+    final fg = onDark ? Colors.white : AppColors.ink;
+    // Swallows every tap underneath while the request runs.
+    return AbsorbPointer(
+      child: ColoredBox(
+        color: Colors.black.withValues(alpha: onDark ? 0.55 : 0.35),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 42,
+                height: 42,
+                child: CircularProgressIndicator(strokeWidth: 3, color: fg),
+              ),
+              if (message != null && message!.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text(
+                  message!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: fg, fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class AppField extends StatelessWidget {
   const AppField({
     super.key,
@@ -182,7 +230,7 @@ class AppField extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                _FieldLabel(
                   verifyStyle ? label.toUpperCase() : label,
                   style: TextStyle(
                     fontSize: verifyStyle ? 10 : 11,
@@ -323,7 +371,7 @@ class AppSelect<T> extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                _FieldLabel(
                   verifyStyle ? label.toUpperCase() : label,
                   style: TextStyle(
                     fontSize: verifyStyle ? 10 : 11,
@@ -443,7 +491,7 @@ class AppSearchSelect extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    _FieldLabel(
                       verifyStyle ? label.toUpperCase() : label,
                       style: TextStyle(
                         fontSize: verifyStyle ? 10 : 11,
@@ -542,11 +590,16 @@ class _SearchSelectSheetState extends State<_SearchSelectSheet> {
   @override
   Widget build(BuildContext context) {
     final filtered = _filtered;
-    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    final media = MediaQuery.of(context);
+    final keyboard = media.viewInsets.bottom;
+    // Sit right on top of the keyboard and take the whole space above it, so the
+    // list keeps its room instead of being squeezed into what is left.
+    final available = media.size.height - media.padding.top - 12 - keyboard;
+    final height = keyboard > 0 ? available : math.min(media.size.height * 0.72, available);
     return Padding(
-      padding: EdgeInsets.only(bottom: bottom),
+      padding: EdgeInsets.only(bottom: keyboard),
       child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * 0.72,
+        height: height,
         child: Column(
           children: [
             const SizedBox(height: 8),
@@ -663,7 +716,7 @@ class AppChoiceField extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.ink3)),
+                _FieldLabel(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.ink3)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -1178,6 +1231,28 @@ class VerificationAppBar extends StatelessWidget implements PreferredSizeWidget 
         statusBarColor: VerifyColors.deep,
         statusBarIconBrightness: Brightness.light,
         statusBarBrightness: Brightness.dark,
+      ),
+    );
+  }
+}
+
+/// Field label that paints a trailing required marker (" *") in red.
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text, {required this.style});
+  final String text;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmed = text.trimRight();
+    if (!trimmed.endsWith('*')) return Text(text, style: style);
+    return Text.rich(
+      TextSpan(
+        style: style,
+        children: [
+          TextSpan(text: trimmed.substring(0, trimmed.length - 1).trimRight()),
+          const TextSpan(text: ' *', style: TextStyle(color: AppColors.bad)),
+        ],
       ),
     );
   }

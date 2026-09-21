@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -13,6 +15,7 @@ import '../../data/remote/api_client.dart';
 import '../../data/remote/pincode_api.dart';
 import '../join/join_chrome.dart';
 import '../session/profile_photo_sheet.dart';
+import 'photo_preview_view.dart';
 import '../card/membership_card_view.dart';
 import '../session/session_controller.dart';
 import '../../core/widgets/flash.dart';
@@ -76,76 +79,7 @@ class _ProfileViewState extends State<ProfileView> {
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           children: [
-            Center(
-              child: GestureDetector(
-                onTap: showProfilePhotoSheet,
-                child: Stack(
-                  children: [
-                    Container(
-                      width: 96,
-                      height: 96,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [HomeColors.peach, Color(0xFFF0C48A)],
-                        ),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: localOrNetworkPhoto(
-                        raw: memberPhotoRef(session.member ?? {}),
-                        fallback: Center(
-                          child: Text(
-                            c.initials,
-                            style: const TextStyle(
-                              color: HomeColors.navy,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 28,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (!session.canUseMemberActions)
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: Container(
-                          width: 26,
-                          height: 26,
-                          decoration: BoxDecoration(
-                            color: HomeColors.muted2,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: HomeColors.paper, width: 3),
-                          ),
-                          child: const Icon(Icons.priority_high_rounded, size: 14, color: Colors.white),
-                        ),
-                      ),
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          color: HomeColors.orange,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: HomeColors.paper, width: 3),
-                        ),
-                        child: const Icon(Icons.photo_camera_outlined, size: 14, color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'change_photo'.trFallback('Tap to change photo'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: HomeColors.muted, fontSize: 12),
-            ),
+            _ProfileAvatar(controller: c),
             const SizedBox(height: 22),
             AppField(
               label: 'card_member_id'.trFallback('Member ID'),
@@ -245,24 +179,28 @@ class _ProfileViewState extends State<ProfileView> {
               ),
             ),
             Obx(
-              () => AppSelect<String>(
+              () => AppSearchSelect(
                 label: '${'district'.tr} *',
                 hint: 'select_district'.tr,
+                searchHint: 'search_district'.trFallback('Search district'),
+                emptyHint: 'no_matches'.trFallback('No matches'),
                 icon: Icons.location_city_outlined,
                 value: c.districts.any((d) => d.id == c.districtId.value) ? c.districtId.value : null,
-                items: c.districts.map((d) => DropdownMenuItem(value: d.id, child: Text(d.name))).toList(),
+                options: c.districts.map((d) => SearchOption(id: d.id, name: d.name)).toList(),
                 enabled: c.stateId.value != null,
                 loading: c.loadingDistricts.value,
                 onChanged: c.onDistrictChanged,
               ),
             ),
             Obx(
-              () => AppSelect<String>(
+              () => AppSearchSelect(
                 label: '${'assembly'.tr} *',
                 hint: 'select_assembly'.tr,
+                searchHint: 'search_assembly'.trFallback('Search assembly'),
+                emptyHint: 'no_matches'.trFallback('No matches'),
                 icon: Icons.account_balance_outlined,
                 value: c.assemblies.any((a) => a.id == c.assemblyId.value) ? c.assemblyId.value : null,
-                items: c.assemblies.map((a) => DropdownMenuItem(value: a.id, child: Text(a.name))).toList(),
+                options: c.assemblies.map((a) => SearchOption(id: a.id, name: a.name)).toList(),
                 enabled: c.districtId.value != null,
                 loading: c.loadingAssemblies.value,
                 onChanged: c.onAssemblyChanged,
@@ -311,6 +249,42 @@ class _ProfileController extends GetxController {
   var _pinLookup = 0;
   final loadingAssemblies = false.obs;
   final saving = false.obs;
+  /// Photo chosen on this screen but not uploaded yet; it goes up when Save is tapped.
+  final pendingPhotoPath = RxnString();
+
+  void pickPhoto() => showProfilePhotoSheet(
+        onPicked: (path) {
+          _deleteTempPhoto(pendingPhotoPath.value);
+          pendingPhotoPath.value = path;
+        },
+      );
+
+  void _deleteTempPhoto(String? path) {
+    if (path == null) return;
+    try {
+      final file = File(path);
+      if (file.existsSync()) file.deleteSync();
+    } catch (_) {
+      // Temp storage is cleared by the OS anyway.
+    }
+  }
+
+  Future<void> _uploadPendingPhoto() async {
+    final path = pendingPhotoPath.value;
+    if (path == null) return;
+    session.photoUploadPath.value = path;
+    session.photoUploadProgress.value = 0;
+    session.photoUploading.value = true;
+    try {
+      await session.uploadProfilePhoto(path);
+      pendingPhotoPath.value = null;
+      _deleteTempPhoto(path);
+    } finally {
+      session.photoUploading.value = false;
+      session.photoUploadPath.value = null;
+      session.photoUploadProgress.value = 0;
+    }
+  }
 
   /// Captured at open — Get.arguments can leak across navigations.
   late final bool openProfileAfterSave;
@@ -374,6 +348,8 @@ class _ProfileController extends GetxController {
     memberId.dispose();
     mobile.dispose();
     voterId.dispose();
+    // Leaving without saving: the picked photo was never uploaded, so drop it.
+    _deleteTempPhoto(pendingPhotoPath.value);
     super.onClose();
   }
 
@@ -540,6 +516,7 @@ class _ProfileController extends GetxController {
     }
     saving.value = true;
     try {
+      await _uploadPendingPhoto();
       await session.updateProfile({
         'fullName': name.text.trim(),
         'dateOfBirth': dobToIso(dob.text),
@@ -582,4 +559,173 @@ String _mobileDigits(String raw) {
   final digits = raw.replaceAll(RegExp(r'\D'), '');
   if (digits.isEmpty) return '';
   return digits.length > 10 ? digits.substring(digits.length - 10) : digits;
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  const _ProfileAvatar({required this.controller});
+  final _ProfileController controller;
+
+  static const _ring = 108.0;
+  static const _size = 94.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final session = Get.find<SessionController>();
+    return Obx(() {
+      session.profile.value;
+      final uploading = session.photoUploading.value;
+      final progress = session.photoUploadProgress.value;
+      final uploadPath = session.photoUploadPath.value;
+      final pendingPath = controller.pendingPhotoPath.value;
+      final pending = pendingPath != null && !uploading;
+      final image = uploading && uploadPath != null
+          ? localOrNetworkImage(uploadPath)
+          : pendingPath != null
+              ? localOrNetworkImage(pendingPath)
+              : localOrNetworkImage(memberPhotoRef(session.member ?? {}));
+      final percent = (progress * 100).round();
+
+      final fallback = Center(
+        child: Text(
+          controller.initials,
+          style: const TextStyle(color: HomeColors.navy, fontWeight: FontWeight.w800, fontSize: 28),
+        ),
+      );
+
+      void openPreview() {
+        if (uploading) return;
+        if (image == null) {
+          controller.pickPhoto();
+          return;
+        }
+        showProfilePhotoPreview(context, image: image);
+      }
+
+      return Column(
+        children: [
+          SizedBox(
+            width: _ring,
+            height: _ring,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Upload ring: real byte progress, spinning while the photo is still being compressed.
+                if (uploading)
+                  SizedBox(
+                    width: _ring,
+                    height: _ring,
+                    child: CircularProgressIndicator(
+                      value: progress > 0 ? progress : null,
+                      strokeWidth: 4,
+                      strokeCap: StrokeCap.round,
+                      backgroundColor: HomeColors.peach,
+                      valueColor: const AlwaysStoppedAnimation(HomeColors.orange),
+                    ),
+                  ),
+                GestureDetector(
+                  onTap: openPreview,
+                  child: Container(
+                      width: _size,
+                      height: _size,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [HomeColors.peach, Color(0xFFF0C48A)],
+                        ),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (image != null)
+                            Image(image: image, fit: BoxFit.cover, errorBuilder: (_, _, _) => fallback)
+                          else
+                            fallback,
+                          if (uploading)
+                            ColoredBox(
+                              color: Colors.black.withValues(alpha: 0.45),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.cloud_upload_outlined, color: Colors.white, size: 24),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    progress > 0 ? '$percent%' : '…',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                  ),
+                ),
+                if (!session.canUseMemberActions && !uploading)
+                  Positioned(
+                    right: 4,
+                    top: 4,
+                    child: Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        color: HomeColors.muted2,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: HomeColors.paper, width: 3),
+                      ),
+                      child: const Icon(Icons.priority_high_rounded, size: 14, color: Colors.white),
+                    ),
+                  ),
+                if (!uploading)
+                  Positioned(
+                    right: 4,
+                    bottom: 4,
+                    child: GestureDetector(
+                      onTap: controller.pickPhoto,
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: HomeColors.orange,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: HomeColors.paper, width: 3),
+                        ),
+                        child: const Icon(Icons.photo_camera_outlined, size: 15, color: Colors.white),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: Text(
+              uploading
+                  ? (progress > 0
+                      ? '${'photo_uploading'.trFallback('Uploading photo')} $percent%'
+                      : 'photo_preparing'.trFallback('Preparing photo…'))
+                  : pending
+                      ? 'photo_pending_hint'.trFallback('New photo · saved when you tap Save changes')
+                      : image != null
+                      ? 'photo_view_hint'.trFallback('Tap photo to view · camera to change')
+                      : 'change_photo'.trFallback('Tap to change photo'),
+              key: ValueKey('$uploading-${progress > 0}-$pending-${image != null}'),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: uploading || pending ? HomeColors.orangeDark : HomeColors.muted,
+                fontSize: 12,
+                fontWeight: uploading || pending ? FontWeight.w700 : FontWeight.w400,
+              ),
+            ),
+          ),
+        ],
+      );
+    });
+  }
 }

@@ -66,9 +66,29 @@ Future<void> initializeVideo(VideoPlayerController controller) async {
 
 const maxPostMediaDuration = Duration(minutes: 1);
 
-bool exceedsMaxPostMedia(Duration? duration) {
-  if (duration == null || duration == Duration.zero) return false;
-  return duration > const Duration(seconds: 61);
+/// Cameras round a 60-second clip up a little, so allow one second of slack.
+const _postMediaDurationLimit = Duration(seconds: 61);
+
+enum PostMediaDuration { ok, tooLong, unknown }
+
+PostMediaDuration checkPostMediaDuration(Duration? duration) {
+  // A null or zero reading means the file could not be probed, not that it is short.
+  if (duration == null || duration == Duration.zero) return PostMediaDuration.unknown;
+  return duration > _postMediaDurationLimit ? PostMediaDuration.tooLong : PostMediaDuration.ok;
+}
+
+/// Reads a clip's length and returns why it cannot be posted, or null when it is fine.
+///
+/// A file whose length cannot be read is refused rather than uploaded blind —
+/// otherwise a long clip with an unreadable header slips past the limit.
+Future<String?> postMediaDurationError(String path, {required bool video}) async {
+  final duration = video ? await videoFileDuration(path) : await audioFileDuration(path);
+  return switch (checkPostMediaDuration(duration)) {
+    PostMediaDuration.ok => null,
+    PostMediaDuration.tooLong => 'media_max_duration'.trFallback('Video and audio can be up to 1 minute.'),
+    PostMediaDuration.unknown => 'media_duration_unknown'
+        .trFallback('The length of this file could not be read. Pick another video or audio clip.'),
+  };
 }
 
 Future<Duration?> videoFileDuration(String path) async {

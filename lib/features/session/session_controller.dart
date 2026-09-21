@@ -12,7 +12,6 @@ import '../../core/routes/app_routes.dart';
 import '../../core/utils/app_log.dart';
 import '../../core/utils/network.dart';
 import '../../data/local/hive_service.dart';
-import '../../data/models/booth.dart';
 import '../../data/remote/api_client.dart';
 import '../activity_event/activity_event_dialog.dart';
 import '../engagement/engagement_dialog.dart';
@@ -28,8 +27,6 @@ class SessionController extends GetxController {
   final profile = Rxn<Map<String, dynamic>>();
   final home = Rxn<Map<String, dynamic>>();
   final homeLoading = false.obs;
-  final nearbyBooths = <Booth>[].obs;
-  final boothsLoading = false.obs;
   final locationDenied = false.obs;
   final lat = Rxn<double>();
   final lng = Rxn<double>();
@@ -534,50 +531,22 @@ class SessionController extends GetxController {
     }
   }
 
-  Future<void> syncNearbyBooths() async {
-    boothsLoading.value = true;
-    try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
-        locationDenied.value = true;
-        nearbyBooths.assignAll(hive.allBooths().take(5).toList());
-        return;
-      }
-      locationDenied.value = false;
-      final pos = await Geolocator.getCurrentPosition();
-      lat.value = pos.latitude;
-      lng.value = pos.longitude;
-      final res = await api.get('/booths/nearby', query: {
-        'lat': pos.latitude,
-        'lng': pos.longitude,
-        'radiusKm': 10,
-      });
-      final list = ((res['data']['booths'] as List?) ?? [])
-          .whereType<Map>()
-          .map((e) => Booth.fromJson(Map<String, dynamic>.from(e)))
-          .toList();
-      await hive.upsertBooths(list);
-      nearbyBooths.assignAll(hive.nearbyLocal(lat: pos.latitude, lng: pos.longitude));
-    } catch (e, stack) {
-      AppLog.error('syncNearbyBooths failed', error: e, stack: stack, tag: 'BOOTH');
-      if (lat.value != null && lng.value != null) {
-        nearbyBooths.assignAll(hive.nearbyLocal(lat: lat.value!, lng: lng.value!));
-      } else {
-        nearbyBooths.assignAll(hive.allBooths());
-      }
-    } finally {
-      boothsLoading.value = false;
-    }
-  }
+  /// Profile photo upload state, shown on the avatar while a new photo is on its way.
+  final photoUploading = false.obs;
+  final photoUploadProgress = 0.0.obs;
+  final photoUploadPath = RxnString();
 
   Future<String> uploadProfilePhoto(String path) async {
     final form = FormData.fromMap({
       'photo': await MultipartFile.fromFile(path, filename: 'profile.jpg'),
     });
-    final res = await api.postMultipart('/members/photo', form);
+    final res = await api.postMultipart(
+      '/members/photo',
+      form,
+      onSendProgress: (sent, total) {
+        if (total > 0) photoUploadProgress.value = (sent / total).clamp(0.0, 1.0);
+      },
+    );
     final data = Map<String, dynamic>.from(res['data'] as Map);
     final photoUrl = data['photoUrl'] as String? ?? data['photoKey'] as String?;
     if (photoUrl != null) {

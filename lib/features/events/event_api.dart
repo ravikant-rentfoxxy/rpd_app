@@ -14,9 +14,12 @@ Future<Map<String, dynamic>> createOrgEvent({
   required String type,
   required String title,
   required DateTime startsAt,
+  required int durationMinutes,
   required String venue,
   String? description,
   String? imagePath,
+  double? latitude,
+  double? longitude,
 }) async {
   final hasImage = imagePath != null && imagePath.isNotEmpty && File(imagePath).existsSync();
   final name = hasImage ? imagePath.split(RegExp(r'[/\\]')).last : '';
@@ -24,8 +27,10 @@ Future<Map<String, dynamic>> createOrgEvent({
     'type': type,
     'title': title,
     'startsAt': startsAt.toUtc().toIso8601String(),
+    'durationMinutes': '$durationMinutes',
     'venue': venue,
     if (description != null && description.isNotEmpty) 'description': description,
+    if (latitude != null && longitude != null) ...{'latitude': '$latitude', 'longitude': '$longitude'},
     if (hasImage)
       'file': await MultipartFile.fromFile(
         imagePath,
@@ -49,6 +54,28 @@ Future<Map<String, dynamic>> fetchOrgEvent(String id) async {
 
 Future<List<Map<String, dynamic>>> fetchOrgEvents() async {
   final res = await Get.find<ApiClient>().get('/events');
+  final items = ((res['data'] as Map?)?['events'] as List?) ?? [];
+  return items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+}
+
+Future<List<Map<String, dynamic>>> fetchJoinedEvents() async {
+  final res = await Get.find<ApiClient>().get('/events/joined');
+  final items = ((res['data'] as Map?)?['events'] as List?) ?? [];
+  return items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+}
+
+/// Server checks the member is within 500 m of the venue. Returns `{event, alreadyIn, metres}`.
+Future<Map<String, dynamic>> checkInOrgEvent(String id, {required double latitude, required double longitude}) async {
+  final res = await Get.find<ApiClient>().post('/events/$id/check-in', data: {
+    'latitude': latitude,
+    'longitude': longitude,
+  });
+  return Map<String, dynamic>.from(res['data'] as Map);
+}
+
+/// Events the current member created: upcoming, live, and those that ended in the last 30 days.
+Future<List<Map<String, dynamic>>> fetchHostedEvents() async {
+  final res = await Get.find<ApiClient>().get('/events/hosted');
   final items = ((res['data'] as Map?)?['events'] as List?) ?? [];
   return items.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
 }

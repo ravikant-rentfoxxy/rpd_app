@@ -385,7 +385,6 @@ class JoinDetailsController extends GetxController {
       if (list.isNotEmpty) {
         boothId.value = list.first.id;
         hive.draft.put('booth', list.first.toJson());
-        await hive.upsertBooths(list);
       }
     } catch (e, stack) {
       AppLog.error('assignBooth failed', error: e, stack: stack, tag: 'JOIN');
@@ -575,56 +574,6 @@ class _BoothSelectViewState extends State<BoothSelectView> {
         ),
         VerifyButton('continue'.tr, onTap: c.continueNext),
       ],
-    );
-  }
-}
-
-class BoothSearchView extends StatelessWidget {
-  const BoothSearchView({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final q = ''.obs;
-    final hive = Get.find<HiveService>();
-    return Scaffold(
-      appBar: AppBar(title: Text('search_booth'.tr)),
-      body: Padding(
-        padding: const EdgeInsets.all(AppSpace.screen),
-        child: Column(
-          children: [
-            TextField(
-              onChanged: (v) => q.value = v,
-              decoration: InputDecoration(
-                hintText: 'search_booth'.tr,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: Obx(() {
-                final list = q.value.isEmpty ? hive.allBooths() : hive.searchLocal(q.value);
-                return ListView(
-                  children: list
-                      .map(
-                        (b) => AppCard(
-                          onTap: () async {
-                            hive.draft.put('boothId', b.id);
-                            hive.draft.put('booth', b.toJson());
-                            if (Get.isRegistered<JoinDetailsController>()) {
-                              await Get.find<JoinDetailsController>().applyBooth(b);
-                            }
-                            Get.back();
-                          },
-                          child: CardTitle('${b.code} · ${b.name}', sub: '${b.village} · Part ${b.partNumber}'),
-                        ),
-                      )
-                      .toList(),
-                );
-              }),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

@@ -62,6 +62,16 @@ class _PostDetailViewState extends State<PostDetailView> {
     return postLabelKey(code).trFallback(fallback.isEmpty ? code.replaceAll('_', ' ') : fallback);
   }
 
+  // The assignee already knows it's theirs — show who handed it over instead.
+  bool get _assignedToMe => data['isAssignedToMe'] == true;
+  String get _assignerName => '${data['assignedByName'] ?? ''}'.trim();
+  String get _assignerPost {
+    final code = '${data['assignedByPost'] ?? ''}'.trim();
+    final fallback = '${data['assignedByPostLabel'] ?? ''}'.trim();
+    if (code.isEmpty) return fallback;
+    return postLabelKey(code).trFallback(fallback.isEmpty ? code.replaceAll('_', ' ') : fallback);
+  }
+
   Future<void> _assign() async {
     if (assigning) return;
     setState(() => assigning = true);
@@ -216,7 +226,14 @@ class _PostDetailViewState extends State<PostDetailView> {
                           detail: _authorMobile,
                         ),
                       ],
-                      if (_assigneeName.isNotEmpty) ...[
+                      if (_assignedToMe && _assignerName.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        _MetaBlock(
+                          title: 'post_assigned_by'.trFallback('Assigned by'),
+                          name: _assignerName,
+                          detail: _assignerPost,
+                        ),
+                      ] else if (!_assignedToMe && _assigneeName.isNotEmpty) ...[
                         const SizedBox(height: 14),
                         _MetaBlock(
                           title: 'assigned_to'.trFallback('Assigned to'),

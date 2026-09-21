@@ -244,11 +244,12 @@ class ApiClient extends GetxService {
     }
   }
 
-  Future<Map<String, dynamic>> postMultipart(String path, FormData data) async {
+  Future<Map<String, dynamic>> postMultipart(String path, FormData data, {ProgressCallback? onSendProgress}) async {
     try {
       final res = await dio.post(
         path,
         data: data,
+        onSendProgress: onSendProgress,
         options: Options(
           sendTimeout: const Duration(minutes: 3),
           receiveTimeout: const Duration(minutes: 3),

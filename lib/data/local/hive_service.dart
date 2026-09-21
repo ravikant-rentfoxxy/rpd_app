@@ -3,30 +3,27 @@ import 'dart:convert';
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../core/constants/post_issues.dart';
-import '../../core/utils/distance.dart';
 import '../../core/utils/dob.dart';
-import '../models/booth.dart';
+
+/// Boxes dropped during development. Deleted on launch so dev devices that
+/// still hold them reclaim the space. Safe to remove once no device has them.
+const _retiredBoxes = ['booths', 'activities', 'tasks', 'recruits'];
 
 class HiveService extends GetxService {
   late Box settings;
-  late Box booths;
   late Box user;
-  late Box activities;
-  late Box tasks;
   late Box syncQueue;
-  late Box recruits;
   late Box draft;
   late Box posts;
 
   Future<HiveService> init() async {
     await Hive.initFlutter();
+    for (final name in _retiredBoxes) {
+      await Hive.deleteBoxFromDisk(name);
+    }
     settings = await Hive.openBox('settings');
-    booths = await Hive.openBox('booths');
     user = await Hive.openBox('user');
-    activities = await Hive.openBox('activities');
-    tasks = await Hive.openBox('tasks');
     syncQueue = await Hive.openBox('sync_queue');
-    recruits = await Hive.openBox('recruits');
     draft = await Hive.openBox('draft');
     posts = await Hive.openBox('region_posts');
     await seedIssuesIfEmpty();
@@ -94,10 +91,7 @@ class HiveService extends GetxService {
     await user.clear();
     await draft.clear();
     await syncQueue.clear();
-    await recruits.clear();
     await posts.clear();
-    await activities.clear();
-    await tasks.clear();
   }
 
   Map<String, dynamic>? get profile {
@@ -115,51 +109,6 @@ class HiveService extends GetxService {
       if (incoming[key] == null && current[key] != null) next[key] = current[key];
     }
     await saveProfile(next);
-  }
-
-  Future<void> upsertBooths(List<Booth> list) async {
-    for (final booth in list) {
-      await booths.put(booth.id, booth.toJson());
-    }
-    await settings.put('booths_fetched_at', DateTime.now().toIso8601String());
-  }
-
-  List<Booth> allBooths() {
-    return booths.values
-        .whereType<Map>()
-        .map((e) => Booth.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
-  }
-
-  List<Booth> nearbyLocal({required double lat, required double lng, int limit = 8}) {
-    final list = allBooths()
-        .map((b) => b.copyWith(distanceMetres: haversineMetres(lat, lng, b.latitude, b.longitude)))
-        .toList()
-      ..sort((a, b) => (a.distanceMetres ?? 1 << 30).compareTo(b.distanceMetres ?? 1 << 30));
-    return list.take(limit).toList();
-  }
-
-  List<Booth> searchLocal(String q) {
-    final query = q.toLowerCase();
-    return allBooths()
-        .where(
-          (b) =>
-              b.village.toLowerCase().contains(query) ||
-              b.partNumber.contains(query) ||
-              b.code.toLowerCase().contains(query) ||
-              b.name.toLowerCase().contains(query) ||
-              b.pincode.contains(query),
-        )
-        .toList();
-  }
-
-  Future<void> saveActivityRow(Map<String, dynamic> row) async {
-    final id = '${row['id'] ?? DateTime.now().millisecondsSinceEpoch}';
-    await activities.put(id, Map<String, dynamic>.from(row));
-  }
-
-  Map<String, dynamic> workLedger() {
-    return {'points': 0, 'entries': []};
   }
 
   List<Map<String, dynamic>> allPosts() {

@@ -523,9 +523,9 @@ class _HomeVideoCard extends StatelessWidget {
 }
 
 class HomeStatsRow extends StatelessWidget {
-  const HomeStatsRow({super.key, required this.members, required this.meetings});
+  const HomeStatsRow({super.key, required this.members, required this.events});
   final String members;
-  final String meetings;
+  final String events;
 
   @override
   Widget build(BuildContext context) {
@@ -540,16 +540,18 @@ class HomeStatsRow extends StatelessWidget {
               icon: Icons.groups_outlined,
               iconBg: HomeColors.navy,
               iconFg: Colors.white,
+              onTap: () => Get.toNamed(Routes.members),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: _StatCard(
-              value: meetings,
-              label: 'meetings_held'.tr,
+              value: events,
+              label: 'current_event'.tr,
               icon: Icons.calendar_month_outlined,
               iconBg: HomeColors.peach,
               iconFg: HomeColors.orange,
+              onTap: () => Get.find<SessionController>().shellIndex.value = 1,
             ),
           ),
         ],
@@ -565,32 +567,58 @@ class _StatCard extends StatelessWidget {
     required this.icon,
     required this.iconBg,
     required this.iconFg,
+    this.onTap,
   });
   final String value;
   final String label;
   final IconData icon;
   final Color iconBg;
   final Color iconFg;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: HomeColors.surface, borderRadius: BorderRadius.circular(24)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
-            child: Icon(icon, color: iconFg, size: 16),
+    final radius = BorderRadius.circular(24);
+    return Material(
+      color: HomeColors.surface,
+      borderRadius: radius,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: radius,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+                    child: Icon(icon, color: iconFg, size: 16),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, height: 1.2, color: HomeColors.muted),
+                    ),
+                  ),
+                  if (onTap != null) ...[
+                    const SizedBox(width: 6),
+                    const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: HomeColors.muted),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(value, style: homeTitleStyle(size: 24)),
+            ],
           ),
-          const SizedBox(height: 12),
-          Text(value, style: homeTitleStyle(size: 24)),
-          const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 12, color: HomeColors.muted)),
-        ],
+        ),
       ),
     );
   }
@@ -602,12 +630,16 @@ class HomeLeaderboard extends StatelessWidget {
     required this.rank,
     required this.size,
     required this.score,
+    required this.points,
     this.scope = 'assembly',
     this.area = '',
   });
   final String rank;
   final String size;
+  /// Booth health, 0-100. Drives the bar and the figure beside it.
   final num score;
+  /// Points earned this month, from the ledger.
+  final num points;
   final String scope;
   final String area;
 
@@ -658,7 +690,7 @@ class HomeLeaderboard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        'points_this_month'.trParams({'n': '${(score * 4).round()}'}),
+                        'points_this_month'.trParams({'n': '${points.round()}'}),
                         style: const TextStyle(fontSize: 12, color: HomeColors.navyMuted),
                       ),
                     ),
@@ -666,7 +698,7 @@ class HomeLeaderboard extends StatelessWidget {
                       TextSpan(
                         children: [
                           TextSpan(text: '${score.round()}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
-                          TextSpan(text: ' ${'points'.tr}', style: const TextStyle(color: HomeColors.navyMuted, fontSize: 12)),
+                          TextSpan(text: ' ${'booth_of_100'.tr}', style: const TextStyle(color: HomeColors.navyMuted, fontSize: 12)),
                         ],
                       ),
                     ),

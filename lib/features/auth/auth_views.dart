@@ -39,6 +39,8 @@ class _MobileViewState extends State<MobileView> {
     loading.value = true;
     try {
       await Get.find<SessionController>().requestOtp(number);
+      // Drop the overlay before pushing, so it is gone when this screen is shown again.
+      loading.value = false;
       await Get.toNamed(Routes.otp, arguments: number);
       if (mounted) locked.value = false;
     } catch (e, stack) {
@@ -109,6 +111,7 @@ class _MobileViewState extends State<MobileView> {
               ),
             ),
           ),
+          Obx(() => ScreenLoader(visible: loading.value, message: 'sending_code'.tr)),
         ],
       ),
     );
@@ -203,81 +206,95 @@ class _OtpViewState extends State<OtpView> {
         children: [
           const _LoginBackdrop(),
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpace.screen),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpace.screen),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight - AppSpace.screen * 2),
+                  // No IntrinsicHeight here: OtpBoxes uses a LayoutBuilder, which can't report intrinsic sizes.
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      IconButton(
-                        onPressed: Get.back,
-                        padding: EdgeInsets.zero,
-                        style: IconButton.styleFrom(
-                          backgroundColor: Colors.black.withValues(alpha: 0.25),
-                          side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
-                          shape: const CircleBorder(),
-                          fixedSize: const Size(40, 40),
-                        ),
-                        icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
-                      ),
-                      const Spacer(),
-                      const _LoginLogo(),
-                    ],
-                  ),
-                  const Spacer(),
-                  DisplayText('enter_code'.tr, color: Colors.white, size: 26),
-                  const SizedBox(height: 6),
-                  Text('code_sent'.tr, style: TextStyle(color: Colors.white.withValues(alpha: 0.78), fontSize: 13)),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Text(
-                        '+91 $mobile · ',
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13, fontWeight: FontWeight.w600),
-                      ),
-                      GestureDetector(
-                        onTap: Get.back,
-                        child: Text(
-                          'change'.tr,
-                          style: const TextStyle(
-                            color: Color(0xFFEF8120),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            decoration: TextDecoration.underline,
-                            decorationColor: Color(0xFFEF8120),
+                      Row(
+                        children: [
+                          IconButton(
+                            onPressed: Get.back,
+                            padding: EdgeInsets.zero,
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.black.withValues(alpha: 0.25),
+                              side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
+                              shape: const CircleBorder(),
+                              fixedSize: const Size(40, 40),
+                            ),
+                            icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
                           ),
-                        ),
+                          const Spacer(),
+                          const _LoginLogo(),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          DisplayText('enter_code'.tr, color: Colors.white, size: 26),
+                          const SizedBox(height: 6),
+                          Text(
+                            'code_sent'.tr,
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.78), fontSize: 13),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Text(
+                                '+91 $mobile · ',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.85),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: Get.back,
+                                child: Text(
+                                  'change'.tr,
+                                  style: const TextStyle(
+                                    color: Color(0xFFEF8120),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    decoration: TextDecoration.underline,
+                                    decorationColor: Color(0xFFEF8120),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          OtpBoxes(controller: code, onChanged: (_) => otpTick.value++),
+                          const SizedBox(height: 16),
+                          Obx(() {
+                            otpTick.value;
+                            return PrimaryButton(
+                              'continue'.tr,
+                              enabled: !loading.value && code.text.replaceAll(RegExp(r'\D'), '').length == 6,
+                              onTap: () => _verify(code.text.replaceAll(RegExp(r'\D'), '')),
+                            );
+                          }),
+                          const SizedBox(height: 10),
+                          Center(
+                            child: Text(
+                              '${'resend'.tr} · ${'sms_instead'.tr}',
+                              style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  OtpBoxes(
-                    controller: code,
-                    onChanged: (_) => otpTick.value++,
-                  ),
-                  const SizedBox(height: 16),
-                  Obx(
-                    () {
-                      otpTick.value;
-                      return PrimaryButton(
-                        loading.value ? '…' : 'continue'.tr,
-                        enabled: !loading.value && code.text.replaceAll(RegExp(r'\D'), '').length == 6,
-                        onTap: () => _verify(code.text.replaceAll(RegExp(r'\D'), '')),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  Center(
-                    child: Text(
-                      '${'resend'.tr} · ${'sms_instead'.tr}',
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
+          Obx(() => ScreenLoader(visible: loading.value, message: 'verifying_code'.tr)),
         ],
       ),
     );

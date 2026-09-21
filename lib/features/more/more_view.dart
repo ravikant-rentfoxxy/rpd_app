@@ -31,6 +31,13 @@ class MoreView extends StatelessWidget {
             child: CardTitle('members'.tr, sub: 'members_more_sub'.trFallback('Add members and see your recruits')),
           ),
           AppCard(
+            onTap: () => Get.toNamed(Routes.myLeaders),
+            child: CardTitle(
+              'my_leaders'.trFallback('My leaders'),
+              sub: 'my_leaders_sub'.trFallback('Leaders of your area, step by step'),
+            ),
+          ),
+          AppCard(
             onTap: () => Get.toNamed(Routes.posts),
             child: CardTitle('region_posts'.tr, sub: 'region_posts_sub'.tr),
           ),
@@ -46,7 +53,10 @@ class MoreView extends StatelessWidget {
             onTap: showMembershipCardOverlay,
             child: CardTitle('membership_card'.tr),
           ),
-          AppCard(onTap: () => Get.toNamed(Routes.boothHealth), child: CardTitle('booth_health'.tr)),
+          AppCard(
+            onTap: () => Get.toNamed(Routes.districtHealth),
+            child: CardTitle('district_health'.tr, sub: 'district_health_sub'.tr),
+          ),
           if (session.canCreateOrgEvents)
             AppCard(
               onTap: () => Get.toNamed(Routes.createTask),

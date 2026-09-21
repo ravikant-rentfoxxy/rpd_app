@@ -3,7 +3,7 @@ import '../../features/boot/boot_view.dart';
 import '../../features/activity/activity_views.dart';
 import '../../features/work/work_view.dart';
 import '../../features/auth/auth_views.dart';
-import '../../features/booth/booth_health_view.dart';
+import '../../features/district/district_health_view.dart';
 import '../../features/card/membership_card_view.dart';
 import '../../features/profile/profile_view.dart';
 import '../../features/profile/profile_overview_view.dart';
@@ -34,6 +34,7 @@ import '../../features/engagement/engagement_play_view.dart';
 import '../../features/activity_event/activity_event_play_view.dart';
 import '../../features/activity_event/activity_events_list_view.dart';
 import 'app_routes.dart';
+import '../../features/leaders/my_leaders_view.dart';
 
 class AppPages {
   static final pages = [
@@ -43,7 +44,6 @@ class AppPages {
     GetPage(name: Routes.profileBasics, page: () => const ProfileBasicsView()),
     GetPage(name: Routes.personal, page: () => const PersonalView()),
     GetPage(name: Routes.boothSelect, page: () => const BoothSelectView()),
-    GetPage(name: Routes.boothSearch, page: () => const BoothSearchView()),
     GetPage(name: Routes.consent, page: () => const ConsentView()),
     GetPage(name: Routes.shell, page: () => const ShellView()),
     GetPage(name: Routes.card, page: () => const MembershipCardView()),
@@ -57,7 +57,7 @@ class AppPages {
     GetPage(name: Routes.members, page: () => const MembersView()),
     GetPage(name: Routes.addMember, page: () => const AddMemberView()),
     GetPage(name: Routes.recruitConsent, page: () => const RecruitConsentView()),
-    GetPage(name: Routes.boothHealth, page: () => const BoothHealthView()),
+    GetPage(name: Routes.districtHealth, page: () => const DistrictHealthView()),
     GetPage(name: Routes.meeting, page: () => const MeetingDetailView()),
     GetPage(name: Routes.checkIn, page: () => const CheckInView()),
     GetPage(name: Routes.tasks, page: () => const TasksView()),
@@ -110,5 +110,6 @@ class AppPages {
     GetPage(name: Routes.postVideo, page: () => const PostVideoPlayerView()),
     GetPage(name: Routes.postDetail, page: () => const PostDetailView()),
     GetPage(name: Routes.grievance, page: () => const GrievanceView()),
+    GetPage(name: Routes.myLeaders, page: () => const MyLeadersView()),
   ];
 }

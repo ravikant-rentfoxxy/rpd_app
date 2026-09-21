@@ -12,7 +12,12 @@ import '../../core/widgets/ui.dart';
 import 'session_controller.dart';
 import '../../core/widgets/flash.dart';
 
-void showProfilePhotoSheet({void Function(String path, String url)? onUploaded}) {
+/// With [onPicked] the photo is only compressed and handed back; the caller uploads it later.
+/// Without it the photo is uploaded straight away and [onUploaded] fires when done.
+void showProfilePhotoSheet({
+  void Function(String path, String url)? onUploaded,
+  void Function(String path)? onPicked,
+}) {
   Get.bottomSheet(
     SafeArea(
       child: Container(
@@ -51,7 +56,7 @@ void showProfilePhotoSheet({void Function(String path, String url)? onUploaded})
               wash: AppColors.okBg,
               title: 'camera'.tr,
               subtitle: 'camera_sub'.tr,
-              onTap: () => _pick(ImageSource.camera, onUploaded),
+              onTap: () => _pick(ImageSource.camera, onUploaded, onPicked),
             ),
             const SizedBox(height: 8),
             _PhotoSourceTile(
@@ -60,7 +65,7 @@ void showProfilePhotoSheet({void Function(String path, String url)? onUploaded})
               wash: AppColors.warnBg,
               title: 'gallery'.tr,
               subtitle: 'gallery_sub'.tr,
-              onTap: () => _pick(ImageSource.gallery, onUploaded),
+              onTap: () => _pick(ImageSource.gallery, onUploaded, onPicked),
             ),
           ],
         ),
@@ -129,12 +134,25 @@ class _PhotoSourceTile extends StatelessWidget {
   }
 }
 
-Future<void> _pick(ImageSource source, void Function(String path, String url)? onUploaded) async {
+Future<void> _pick(
+  ImageSource source,
+  void Function(String path, String url)? onUploaded,
+  void Function(String path)? onPicked,
+) async {
   Get.back();
   final picked = await ImagePicker().pickImage(source: source, imageQuality: 85);
   if (picked == null) return;
+  final session = Get.find<SessionController>();
+  final uploadNow = onPicked == null;
+  if (uploadNow) {
+    // Show the chosen photo on the avatar straight away while it compresses and uploads.
+    session.photoUploadPath.value = picked.path;
+    session.photoUploadProgress.value = 0;
+    session.photoUploading.value = true;
+  }
   try {
-    final dir = await getApplicationDocumentsDirectory();
+    // A photo that is only picked for now stays in temp storage until it is uploaded.
+    final dir = uploadNow ? await getApplicationDocumentsDirectory() : await getTemporaryDirectory();
     final target = '${dir.path}/rpd_profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
     final compressed = await FlutterImageCompress.compressAndGetFile(
       picked.path,
@@ -149,10 +167,21 @@ Future<void> _pick(ImageSource source, void Function(String path, String url)? o
       await File(filePath).copy(target);
       filePath = target;
     }
-    final url = await Get.find<SessionController>().uploadProfilePhoto(filePath);
+    if (!uploadNow) {
+      onPicked(filePath);
+      return;
+    }
+    session.photoUploadPath.value = filePath;
+    final url = await session.uploadProfilePhoto(filePath);
     if (url.isNotEmpty) onUploaded?.call(filePath, url);
   } catch (e, stack) {
     AppLog.error('Profile photo upload failed', error: e, stack: stack, tag: 'PHOTO');
     flash('Error', apiErrorMessage(e));
+  } finally {
+    if (uploadNow) {
+      session.photoUploading.value = false;
+      session.photoUploadPath.value = null;
+      session.photoUploadProgress.value = 0;
+    }
   }
 }

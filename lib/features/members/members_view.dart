@@ -5,12 +5,12 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/language_dropdown.dart';
 import '../../core/utils/api_error.dart';
 import '../../core/utils/app_log.dart';
-import '../../core/utils/dob.dart';
 import '../../core/widgets/empty_card.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/local/hive_service.dart';
 import '../../data/remote/api_client.dart';
 import '../../data/remote/pincode_api.dart';
+import '../join/join_chrome.dart';
 import '../session/session_controller.dart';
 import '../../core/widgets/flash.dart';
 
@@ -147,6 +147,8 @@ class AddMemberView extends StatelessWidget {
             prefix: '+91  ',
             maxLength: 10,
             hint: '98•••• ••••',
+            icon: Icons.smartphone_outlined,
+            verifyStyle: true,
           ),
           Obx(() {
             final e = exists.value;
@@ -189,14 +191,12 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
   final agreed = false.obs;
   final submitting = false.obs;
   final formTick = 0.obs;
-  final gender = 'MALE'.obs;
   final states = <SearchOption>[].obs;
   final stateId = RxnString();
   final loadingStates = false.obs;
   final lookingUpPin = false.obs;
   var _pinLookup = 0;
   final name = TextEditingController();
-  final dob = TextEditingController();
   final pincode = TextEditingController();
   final otp = TextEditingController();
 
@@ -218,7 +218,6 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
   @override
   void dispose() {
     name.dispose();
-    dob.dispose();
     pincode.dispose();
     otp.dispose();
     super.dispose();
@@ -294,10 +293,9 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
       return;
     }
     final fullName = name.text.trim();
-    final dobValue = dobToIso(dob.text);
     final pin = pincode.text.trim();
-    if (fullName.length < 2 || !isValidDob(dobValue)) {
-      flash('Error', !isValidDob(dobValue) ? 'dob_invalid'.tr : 'complete_steps'.tr);
+    if (fullName.length < 2) {
+      flash('Error', 'complete_steps'.tr);
       return;
     }
     if (!RegExp(r'^\d{6}$').hasMatch(pin)) {
@@ -314,8 +312,6 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
       final payload = await session.recruitMember({
         'mobile': mobile,
         'fullName': fullName,
-        'dateOfBirth': dobValue,
-        'gender': gender.value,
         'pincode': pin,
         'stateId': stateId.value,
         if (boothId != null) 'boothId': boothId,
@@ -354,32 +350,23 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
         children: [
           const StepBar(total: 2, current: 2),
           AppCard(tone: CardTone.brand, child: CardTitle('hand_phone'.tr, sub: 'must_agree'.tr)),
-          AppField(label: '${'full_name'.tr} *', controller: name, hint: 'enter_name'.tr, onChanged: (_) => tick()),
-          GestureDetector(
-            onTap: () async {
-              final now = DateTime.now();
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: parseDobDate(dob.text) ?? DateTime(now.year - 25, 1, 1),
-                firstDate: DateTime(now.year - 120),
-                lastDate: now,
-              );
-              if (picked == null) return;
-              dob.text = dateToDisplay(picked);
-              tick();
-            },
-            child: AbsorbPointer(
-              child: AppField(label: '${'dob'.tr} *', controller: dob, hint: 'dob_hint'.tr, keyboard: TextInputType.none),
-            ),
+          AppField(
+            label: '${'full_name'.tr} *',
+            controller: name,
+            hint: 'enter_name'.tr,
+            icon: Icons.person_outline_rounded,
+            verifyStyle: true,
+            onChanged: (_) => tick(),
           ),
           AppField(
             label: '${'pincode'.tr} *',
             controller: pincode,
             hint: 'pincode_hint'.tr,
-            icon: Icons.credit_card_outlined,
+            icon: Icons.pin_outlined,
             keyboard: TextInputType.number,
             digitsOnly: true,
             maxLength: 6,
+            verifyStyle: true,
             onChanged: (value) {
               tick();
               _lookupStateFromPincode(value);
@@ -396,38 +383,34 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
               options: states.toList(),
               loading: loadingStates.value || lookingUpPin.value,
               enabled: false,
+              verifyStyle: true,
               onChanged: (id) {
                 stateId.value = id;
                 tick();
               },
             ),
           ),
-          Obx(
-            () => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: InputDecorator(
-                decoration: InputDecoration(
-                  labelText: 'gender'.tr,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(9)),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: gender.value,
-                    items: [
-                      DropdownMenuItem(value: 'MALE', child: Text('male'.tr)),
-                      DropdownMenuItem(value: 'FEMALE', child: Text('female'.tr)),
-                      DropdownMenuItem(value: 'OTHER', child: Text('other'.tr)),
-                    ],
-                    onChanged: (v) {
-                      gender.value = v ?? 'MALE';
-                      tick();
-                    },
-                  ),
-                ),
+          const SizedBox(height: 4),
+          VerifyInfoBox(
+            title: 'consent_collect_title'.trFallback('What we collect, and why'),
+            paragraphs: [
+              'consent_collect_recruit_p1'.trFallback(
+                'Their name, mobile number, pincode and state — so the party can maintain its membership register and assign them to a committee.',
               ),
+              'consent_collect_recruit_p2'.trFallback('Activity they record in this app, with time and location.'),
+              'consent_collect_p4'.trFallback(
+                'We keep this while your membership is active, and for three years after. Grievance officer: privacy@party.in',
+              ),
+            ],
+          ),
+          Obx(
+            () => VerifyCheckCard(
+              label: 'i_agree'.tr,
+              tag: 'required'.tr,
+              checked: agreed.value,
+              onTap: agreed.toggle,
             ),
           ),
-          Obx(() => AppCard(onTap: agreed.toggle, child: CardTitle('${agreed.value ? '☑' : '☐'} ${'i_agree'.tr}', sub: 'required'.tr))),
           AppField(
             label: 'OTP',
             controller: otp,
@@ -436,6 +419,8 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
             hint: '6-digit code',
             maxLength: 6,
             digitsOnly: true,
+            icon: Icons.lock_outline_rounded,
+            verifyStyle: true,
             onChanged: (_) => tick(),
           ),
           Obx(() {
@@ -444,7 +429,6 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
             final canSubmit = agreed.value &&
                 otp.text.length == 6 &&
                 name.text.trim().length >= 2 &&
-                isValidDob(dob.text) &&
                 RegExp(r'^\d{6}$').hasMatch(pincode.text.trim()) &&
                 stateId.value != null &&
                 !submitting.value;

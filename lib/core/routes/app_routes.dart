@@ -18,7 +18,7 @@ class Routes {
   static const members = '/members';
   static const addMember = '/members/add';
   static const recruitConsent = '/members/consent';
-  static const boothHealth = '/booth/health';
+  static const districtHealth = '/district/health';
   static const meeting = '/meeting';
   static const checkIn = '/meeting/checkin';
   static const tasks = '/tasks';
@@ -27,7 +27,6 @@ class Routes {
   static const notifications = '/notifications';
   static const verification = '/verification';
   static const memberStatus = '/verification/status';
-  static const boothSearch = '/booth/search';
   static const apiSettings = '/settings/api';
   static const errorLog = '/settings/logs';
   static const youtubePlayer = '/video';
@@ -45,4 +44,5 @@ class Routes {
   static const postVideo = '/posts/video';
   static const postDetail = '/posts/detail';
   static const grievance = '/grievance';
+  static const myLeaders = '/leaders';
 }

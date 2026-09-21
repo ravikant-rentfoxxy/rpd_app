@@ -355,8 +355,9 @@ class _CreatePostViewState extends State<CreatePostView> {
         maxDuration: maxPostMediaDuration,
       );
       if (picked == null) return;
-      if (exceedsMaxPostMedia(await videoFileDuration(picked.path))) {
-        flash('Error', 'media_max_duration'.trFallback('Video and audio can be up to 1 minute.'));
+      final tooLong = await postMediaDurationError(picked.path, video: true);
+      if (tooLong != null) {
+        flash('Error', tooLong);
         return;
       }
       mediaPath.value = picked.path;
@@ -399,8 +400,9 @@ class _CreatePostViewState extends State<CreatePostView> {
       final picked = await FilePicker.pickFile(type: FileType.audio);
       final path = picked?.path;
       if (path == null || path.isEmpty) return;
-      if (exceedsMaxPostMedia(await audioFileDuration(path))) {
-        flash('Error', 'media_max_duration'.trFallback('Video and audio can be up to 1 minute.'));
+      final tooLong = await postMediaDurationError(path, video: false);
+      if (tooLong != null) {
+        flash('Error', tooLong);
         return;
       }
       mediaPath.value = path;
@@ -431,11 +433,9 @@ class _CreatePostViewState extends State<CreatePostView> {
       return;
     }
     if (hasMedia && (kind == _PostMediaKind.video || kind == _PostMediaKind.audio)) {
-      final duration = kind == _PostMediaKind.video
-          ? await videoFileDuration(localPath!)
-          : await audioFileDuration(localPath!);
-      if (exceedsMaxPostMedia(duration)) {
-        flash('Error', 'media_max_duration'.trFallback('Video and audio can be up to 1 minute.'));
+      final tooLong = await postMediaDurationError(localPath, video: kind == _PostMediaKind.video);
+      if (tooLong != null) {
+        flash('Error', tooLong);
         return;
       }
     }
@@ -607,7 +607,14 @@ class _CreatePostViewState extends State<CreatePostView> {
           Obx(() {
             if (recording.value) {
               return AudioRecordPanel(
-                onDone: (path) {
+                onDone: (path) async {
+                  // The panel stops itself at a minute; confirm the file agrees.
+                  final tooLong = await postMediaDurationError(path, video: false);
+                  if (tooLong != null) {
+                    recording.value = false;
+                    flash('Error', tooLong);
+                    return;
+                  }
                   mediaPath.value = path;
                   recording.value = false;
                 },
@@ -1191,7 +1198,16 @@ class RegionPostCard extends StatelessWidget {
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: HomeColors.ink),
                     ),
                   ],
-                  if ('${post['assigneeName'] ?? ''}'.trim().isNotEmpty) ...[
+                  if (post['isAssignedToMe'] == true) ...[
+                    if ('${post['assignedByName'] ?? ''}'.trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '${'post_assigned_by'.trFallback('Assigned by')} ${post['assignedByName']}'
+                        '${'${post['assignedByPostLabel'] ?? ''}'.trim().isEmpty ? '' : ' · ${post['assignedByPostLabel']}'}',
+                        style: const TextStyle(fontSize: 12, color: HomeColors.ink),
+                      ),
+                    ],
+                  ] else if ('${post['assigneeName'] ?? ''}'.trim().isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
                       '${'assigned_to'.trFallback('Assigned to')} ${post['assigneeName']}'

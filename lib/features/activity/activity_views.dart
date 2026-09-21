@@ -11,6 +11,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/api_error.dart';
 import '../../core/utils/app_log.dart';
 import '../../core/utils/local_image.dart';
+import '../../core/widgets/place_field.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/local/hive_service.dart';
 import '../../data/remote/api_client.dart';
@@ -24,6 +25,9 @@ class ActivityCaptureController extends GetxController {
   final hive = Get.find<HiveService>();
   final session = Get.find<SessionController>();
   final place = TextEditingController();
+  /// Coordinates of the address picked from suggestions (the member's own GPS is sent separately).
+  double? placeLat;
+  double? placeLng;
   final photoPath = Rxn<String>();
   final capturedAt = DateTime.now().obs;
   final locating = false.obs;
@@ -41,6 +45,11 @@ class ActivityCaptureController extends GetxController {
   void onClose() {
     place.dispose();
     super.onClose();
+  }
+
+  void onPlacePicked(PlaceSuggestion place) {
+    placeLat = place.latitude;
+    placeLng = place.longitude;
   }
 
   Future<void> refreshLocation() async {
@@ -89,6 +98,8 @@ class ActivityCaptureController extends GetxController {
         'type': type,
         'title': purposeLabel,
         'placeName': place.text.trim(),
+        if (placeLat != null) 'placeLatitude': placeLat,
+        if (placeLng != null) 'placeLongitude': placeLng,
         'notes': place.text.trim(),
         'photoPaths': [photoPath.value],
         'photoPath': photoPath.value,
@@ -99,7 +110,6 @@ class ActivityCaptureController extends GetxController {
         if (boothId != null) 'boothId': boothId,
         'status': 'SAVED_LOCAL',
       };
-      await hive.saveActivityRow(row);
       await hive.enqueueSync(row);
       session.syncCount.value = hive.pendingSync().length;
       try {
@@ -329,11 +339,15 @@ class _ActivityDetailsViewState extends State<ActivityDetailsView> {
               child: CardTitle('location_label'.tr, sub: sub),
             );
           }),
-          AppField(
-            label: 'place_name'.tr,
+          PlaceSuggestionsField(
             controller: c.place,
-            hint: 'place_name_hint'.tr,
-            icon: Icons.place_outlined,
+            onSelected: c.onPlacePicked,
+            child: AppField(
+              label: 'place_name'.tr,
+              controller: c.place,
+              hint: 'place_name_hint'.tr,
+              icon: Icons.place_outlined,
+            ),
           ),
           Obx(
             () => PrimaryButton(

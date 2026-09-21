@@ -138,6 +138,14 @@ class _ProfileBasicsViewState extends State<ProfileBasicsView> {
               onChanged: c.onStateChanged,
             ),
           ),
+          if (c.showReferral)
+            AppField(
+              label: 'card_referral'.tr,
+              controller: c.referral,
+              hint: 'referral_hint'.tr,
+              icon: Icons.card_giftcard_outlined,
+              maxLength: 32,
+            ),
           const SizedBox(height: 8),
           VerifyInfoBox(
             title: 'consent_collect_title'.trFallback('What we collect, and why'),
@@ -205,6 +213,7 @@ class _ProfileBasicsController extends GetxController {
 
   late final TextEditingController name;
   late final TextEditingController pincode;
+  final referral = TextEditingController();
   final states = <_GeoOption>[].obs;
   final stateId = RxnString();
   final photoPath = Rxn<String>();
@@ -217,6 +226,9 @@ class _ProfileBasicsController extends GetxController {
   final pledgeUpdates = false.obs;
 
   Map<String, dynamic> get member => session.member ?? {};
+
+  /// Referral only counts once, before the member finishes joining.
+  late final bool showReferral = '${member['referralCode'] ?? ''}'.trim().isEmpty;
 
   @override
   void onInit() {
@@ -247,6 +259,7 @@ class _ProfileBasicsController extends GetxController {
   void onClose() {
     name.dispose();
     pincode.dispose();
+    referral.dispose();
     super.onClose();
   }
 
@@ -392,6 +405,7 @@ class _ProfileBasicsController extends GetxController {
         'stateId': stateId.value,
         'acceptedRequiredConsent': true,
         'whatsappOptIn': pledgeUpdates.value,
+        if (showReferral && referral.text.trim().isNotEmpty) 'referralCode': referral.text.trim(),
         if (session.lat.value != null && session.lng.value != null) 'latitude': session.lat.value,
         if (session.lat.value != null && session.lng.value != null) 'longitude': session.lng.value,
       });
