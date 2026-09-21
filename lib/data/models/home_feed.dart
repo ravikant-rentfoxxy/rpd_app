@@ -5,6 +5,9 @@ class HomeFeedItem {
     required this.source,
     this.imageUrl,
     this.video = false,
+    this.id = '',
+    this.description = '',
+    this.body = '',
   });
 
   final String title;
@@ -12,16 +15,27 @@ class HomeFeedItem {
   final String source;
   final String? imageUrl;
   final bool video;
+  final String id;
+  final String description;
+
+  /// Article text written in the admin portal. Blogs that carry it are read
+  /// inside the app; the rest open [url] in a browser.
+  final String body;
+
+  bool get readInApp => body.trim().isNotEmpty;
 
   String? get youtubeId => youtubeVideoId(url);
 
   Map<String, dynamic> toJson() => {
+        'id': id,
         'title': title,
         'url': url,
         'source': source,
         'imageUrl': imageUrl,
         'place': source,
         'video': video,
+        'description': description,
+        'body': body,
       };
 
   factory HomeFeedItem.fromJson(Map<String, dynamic> json) {
@@ -31,6 +45,9 @@ class HomeFeedItem {
       source: '${json['source'] ?? json['place'] ?? ''}',
       imageUrl: (json['imageUrl'] as String?)?.trim().isEmpty == true ? null : json['imageUrl'] as String?,
       video: json['video'] == true,
+      id: '${json['id'] ?? ''}',
+      description: '${json['description'] ?? ''}',
+      body: '${json['body'] ?? ''}',
     );
   }
 }
@@ -269,7 +286,7 @@ List<HomeFeedItem> feedItemsFrom(List? raw, {List<HomeFeedItem> fallback = const
   final items = (raw ?? [])
       .whereType<Map>()
       .map((e) => HomeFeedItem.fromJson(Map<String, dynamic>.from(e)))
-      .where((e) => e.title.trim().isNotEmpty || (e.imageUrl ?? '').isNotEmpty)
+      .where((e) => e.title.trim().isNotEmpty || (e.imageUrl ?? '').isNotEmpty || e.readInApp)
       .toList();
   return items.isEmpty ? fallback : items;
 }

@@ -7,6 +7,7 @@ import '../../features/district/district_health_view.dart';
 import '../../features/card/membership_card_view.dart';
 import '../../features/profile/profile_view.dart';
 import '../../features/profile/profile_overview_view.dart';
+import '../../features/home/blog_article_view.dart';
 import '../../features/home/home_feed_list_view.dart';
 import '../../features/home/youtube_player_view.dart';
 import '../../data/models/home_feed.dart';
@@ -89,6 +90,7 @@ class AppPages {
         );
       },
     ),
+    GetPage(name: Routes.blogArticle, page: () => const BlogArticleView()),
     GetPage(
       name: Routes.nearbyActivity,
       page: () {

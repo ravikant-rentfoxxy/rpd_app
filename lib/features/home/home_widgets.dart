@@ -19,6 +19,11 @@ import '../../core/widgets/flash.dart';
 enum HomeFeedKind { video, blog, nearby }
 
 Future<void> openHomeFeedItem(HomeFeedItem item) async {
+  // Blogs written in the admin portal have no link to follow — read them here.
+  if (item.readInApp) {
+    Get.toNamed(Routes.blogArticle, arguments: item);
+    return;
+  }
   if (item.url.trim().isEmpty) return;
   await openExternalUrl(item.url, preferExternal: item.youtubeId != null);
 }

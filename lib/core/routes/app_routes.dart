@@ -32,6 +32,7 @@ class Routes {
   static const youtubePlayer = '/video';
   static const recentVideos = '/home/videos';
   static const recentBlogs = '/home/blogs';
+  static const blogArticle = '/home/blogs/article';
   static const nearbyActivity = '/home/nearby';
   static const upcomingEvents = '/home/events';
   static const createEvent = '/events/create';
