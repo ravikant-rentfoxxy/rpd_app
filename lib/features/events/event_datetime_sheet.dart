@@ -3,13 +3,14 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../join/join_chrome.dart';
 import '../../core/widgets/flash.dart';
+import '../../core/theme/app_colors.dart';
 
 const _sheet = Color(0xFFFFFBF7);
 const _navy = Color(0xFF1B1340);
-const _muted = Color(0xFFB4AFA6);
+const _muted = Iro.muted2;
 const _pill = Color(0xFFF7F3EE);
 const _orange = Color(0xFFF5821F);
-const _weekday = Color(0xFFB8B2A8);
+const _weekday = Iro.muted2;
 
 Future<DateTime?> showEventDateTimeSheet({required DateTime initial}) {
   return Get.bottomSheet<DateTime>(
@@ -129,7 +130,7 @@ class _EventDateTimeSheetState extends State<EventDateTimeSheet> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE8E2D8), borderRadius: BorderRadius.circular(2))),
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: Iro.line, borderRadius: BorderRadius.circular(2))),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -322,7 +323,7 @@ class _Meridiem extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: selected ? _navy : const Color(0xFF9A948C)),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: selected ? _navy : Iro.muted),
         ),
       ),
     );

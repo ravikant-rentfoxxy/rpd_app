@@ -84,7 +84,7 @@ class _EventDetailViewState extends State<EventDetailView> {
       Get.find<SessionController>().home.value;
       final item = data;
       return Scaffold(
-        backgroundColor: const Color(0xFFFAF6F0),
+        backgroundColor: Iro.mint,
         appBar: OrganicAppBar(
           title: item.title.isEmpty ? 'event_detail'.trFallback('Event') : item.title,
         ),
@@ -97,7 +97,7 @@ class _EventDetailViewState extends State<EventDetailView> {
                 onPressed: item.joined || joining ? null : _join,
                 style: FilledButton.styleFrom(
                   backgroundColor: item.joined ? const Color(0xFF1B8A6A) : const Color(0xFFF5821F),
-                  disabledBackgroundColor: item.joined ? const Color(0xFF1B8A6A) : const Color(0xFFC6BBA8),
+                  disabledBackgroundColor: item.joined ? const Color(0xFF1B8A6A) : Iro.muted2,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
                   elevation: 0,
@@ -121,7 +121,7 @@ class _EventDetailViewState extends State<EventDetailView> {
               color: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: Color(0xFFEFE4D6), width: 0.5),
+                side: const BorderSide(color: Iro.wash2, width: 0.5),
               ),
               clipBehavior: Clip.antiAlias,
               child: Column(
@@ -157,7 +157,7 @@ class _EventDetailViewState extends State<EventDetailView> {
                         ],
                         if (item.description.trim().isNotEmpty) ...[
                           const SizedBox(height: 16),
-                          Text('event_notes'.trFallback('Notes'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFFA6957A), letterSpacing: 0.2)),
+                          Text('event_notes'.trFallback('Notes'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Iro.muted, letterSpacing: 0.2)),
                           const SizedBox(height: 6),
                           Text(item.description, style: const TextStyle(fontSize: 15, height: 1.45, color: HomeColors.ink)),
                         ],
@@ -172,7 +172,7 @@ class _EventDetailViewState extends State<EventDetailView> {
               color: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(color: Color(0xFFEFE4D6), width: 0.5),
+                side: const BorderSide(color: Iro.wash2, width: 0.5),
               ),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),

@@ -11,7 +11,9 @@ import '../../core/constants/post_issues.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/utils/app_log.dart';
 import '../../core/utils/network.dart';
+import '../../core/widgets/flash.dart';
 import '../../data/local/hive_service.dart';
+import '../../data/models/home_feed.dart';
 import '../../data/remote/api_client.dart';
 import '../activity_event/activity_event_dialog.dart';
 import '../engagement/engagement_dialog.dart';
@@ -104,9 +106,9 @@ class SessionController extends GetxController {
   static bool hasProfileBasics(Map<String, dynamic>? member) {
     if (member == null) return false;
     final name = '${member['fullName'] ?? ''}'.trim();
-    final pin = '${member['pincode'] ?? ''}'.trim();
     final stateId = '${member['stateId'] ?? ''}'.trim();
-    return name.length >= 2 && RegExp(r'^\d{6}$').hasMatch(pin) && stateId.isNotEmpty;
+    final districtId = '${member['districtId'] ?? ''}'.trim();
+    return name.length >= 2 && stateId.isNotEmpty && districtId.isNotEmpty;
   }
 
   bool get hasCompleteProfileBasics => hasProfileBasics(member);
@@ -402,6 +404,88 @@ class SessionController extends GetxController {
     postsTick.value++;
   }
 
+  /// The issue posts the server picked for the home rail: open, most urgent
+  /// first, inside the member's own district. When the server has none — offline,
+  /// or a district with nothing filed — the member's own regional feed stands in
+  /// so the rail is not a blank strip.
+  List<Map<String, dynamic>> homeIssuePosts({int limit = 8}) {
+    final raw = home.value?['nearbyIssuePosts'] as List? ?? const [];
+    final items = raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    if (items.isEmpty) return recentRegionalPosts(limit: limit);
+    return items.take(limit).toList();
+  }
+
+  /// Send the side the member tapped. The server treats the side they already
+  /// hold as taking the vote back, and answers with the whole post, which is
+  /// written into both the rail and the regional feed so the two agree.
+  /// Returns the post as the server left it, so a screen holding its own copy
+  /// can show the new tally without refetching.
+  Future<Map<String, dynamic>> voteOnPost(Map<String, dynamic> post, String? vote) async {
+    final updated = await voteOnRegionPost(post, vote);
+    upsertRegionPost(updated);
+    final id = '${updated['clientUuid'] ?? updated['id'] ?? ''}';
+    final current = home.value;
+    final rail = current?['nearbyIssuePosts'] as List?;
+    if (id.isEmpty || current == null || rail == null) return updated;
+    final next = rail
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .map((item) => '${item['clientUuid'] ?? item['id'] ?? ''}' == id ? updated : item)
+        .toList();
+    home.value = {...current, 'nearbyIssuePosts': next};
+    return updated;
+  }
+
+  /// Write a fresh like/dislike tally back into the cached home feed, so the
+  /// card keeps its counts when the screen rebuilds and the two rails agree
+  /// without refetching the whole of Home.
+  void patchContentVote(HomeFeedItem item) {
+    final current = home.value;
+    if (current == null || item.id.isEmpty) return;
+    final next = Map<String, dynamic>.from(current);
+    var touched = false;
+    for (final key in ['recentVideos', 'recentBlogs']) {
+      final rows = current[key];
+      if (rows is! List) continue;
+      next[key] = rows.map((row) {
+        if (row is! Map || '${row['id'] ?? ''}' != item.id) return row;
+        touched = true;
+        return {
+          ...Map<String, dynamic>.from(row),
+          'likes': item.likes,
+          'dislikes': item.dislikes,
+          'myVote': item.myVote,
+        };
+      }).toList();
+    }
+    if (touched) home.value = next;
+  }
+
+  /// Write a fresh view total into the cached copies of a post, so the card the
+  /// member came from shows the new number when they go back.
+  void patchPostViews(Map<String, dynamic> post, int views) {
+    final id = '${post['clientUuid'] ?? post['id'] ?? ''}';
+    if (id.isEmpty) return;
+    var touched = false;
+    for (var i = 0; i < regionPosts.length; i++) {
+      if ('${regionPosts[i]['clientUuid'] ?? regionPosts[i]['id'] ?? ''}' != id) continue;
+      regionPosts[i] = {...regionPosts[i], 'views': views};
+      touched = true;
+    }
+    final current = home.value;
+    final rail = current?['nearbyIssuePosts'];
+    if (current != null && rail is List) {
+      home.value = {
+        ...current,
+        'nearbyIssuePosts': rail.map((row) {
+          if (row is! Map || '${row['clientUuid'] ?? row['id'] ?? ''}' != id) return row;
+          return {...Map<String, dynamic>.from(row), 'views': views};
+        }).toList(),
+      };
+    }
+    if (touched) postsTick.value++;
+  }
+
   Future<void> refreshRegionPosts() async {
     if (!hasSession) return;
     try {
@@ -575,12 +659,33 @@ class SessionController extends GetxController {
       ...body,
       if (photoKey is String && photoKey.isNotEmpty) 'photoUrl': photoKey,
     });
-    final member = Map<String, dynamic>.from(res['data']['member'] as Map);
+    final data = Map<String, dynamic>.from(res['data'] as Map);
+    final member = Map<String, dynamic>.from(data['member'] as Map);
     member['stateName'] ??= hive.draft.get('stateName');
     member['districtName'] ??= hive.draft.get('districtName');
     member['assemblyName'] ??= hive.draft.get('assemblyName');
     await hive.saveProfile(member);
     profile.value = member;
+
+    // An invite code that was spent has just changed which post this member
+    // holds, and the post is baked into the access token — so the old one now
+    // understates them and would be turned away from their own screens.
+    final invite = data['invite'];
+    if (invite is Map && invite['applied'] == true) {
+      await hive.draft.delete('inviteCode');
+      await api.refreshAccessToken(expireOnFail: false);
+      final where = '${invite['where'] ?? ''}';
+      flash(
+        'ok',
+        where.isEmpty
+            ? 'invite_applied'.trParams({'post': '${invite['postTitle'] ?? ''}'})
+            : 'invite_applied_at'.trParams({'post': '${invite['postTitle'] ?? ''}', 'where': where}),
+      );
+    } else if (invite is Map && invite['reason'] != null) {
+      // The form went through; only the code did not. Saying so is better than
+      // letting them find out later that they are an ordinary member.
+      flash('Error', '${invite['reason']}');
+    }
     if (openHome) openPostAuth();
   }
 

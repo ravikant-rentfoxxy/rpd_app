@@ -40,7 +40,10 @@ class _DistrictHealthViewState extends State<DistrictHealthView> {
   final data = Rxn<Map<String, dynamic>>();
   final loading = true.obs;
   final error = ''.obs;
-  final days = Rxn<int>();
+  /// 30 days, which is the middle chip. Left null the screen would open on the
+  /// calendar-month range whose chip has been removed, so nothing would look
+  /// selected.
+  final days = Rxn<int>(30);
 
   @override
   void initState() {
@@ -289,7 +292,6 @@ class _RangeChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final options = <(String, int?)>[
-      ('this_month'.trFallback('This month'), null),
       ('last_7_days'.trFallback('7 days'), 7),
       ('last_30_days'.trFallback('30 days'), 30),
       ('last_90_days'.trFallback('90 days'), 90),

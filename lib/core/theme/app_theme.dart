@@ -40,11 +40,20 @@ class AppTheme {
         ),
         labelSmall: body.labelSmall?.copyWith(fontSize: 11, color: AppColors.ink3),
       ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: HomeColors.navy,
+      appBarTheme: AppBarTheme(
+        backgroundColor: HomeColors.navyMid,
         foregroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
+        // The home bar stands 64 high under the status inset and sets its type
+        // in Bricolage; every other bar follows it.
+        toolbarHeight: kToolbarHeight + 8,
+        titleTextStyle: GoogleFonts.bricolageGrotesque(
+          fontSize: 24,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
+        systemOverlayStyle: appBarOverlay,
       ),
     );
   }

@@ -16,6 +16,7 @@ import '../../core/utils/local_image.dart';
 import '../../core/utils/network.dart';
 import '../../core/utils/relative_time.dart';
 import '../../core/widgets/empty_card.dart';
+import '../../core/widgets/iro_ui.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/local/hive_service.dart';
 import '../join/join_chrome.dart';
@@ -28,6 +29,13 @@ import 'post_media.dart';
 import '../../core/widgets/flash.dart';
 
 enum _PostMediaKind { image, audio, video }
+
+/// Which pane [PostsListView] opens on. Passed as the route's argument, so a
+/// caller that means "show me what other members filed" can say so.
+class PostsTab {
+  static const mine = 0;
+  static const others = 1;
+}
 
 class PostsListView extends StatefulWidget {
   const PostsListView({super.key});
@@ -42,7 +50,15 @@ class _PostsListViewState extends State<PostsListView> with SingleTickerProvider
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    // Most ways in want the member's own posts; Home's "N verified nearby"
+    // asks for the other pane, since that is what the count is about.
+    final requested = Get.arguments;
+    final initial = requested is num ? requested.toInt() : PostsTab.mine;
+    _tabs = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: initial.clamp(PostsTab.mine, PostsTab.others),
+    );
     final session = Get.find<SessionController>();
     session.syncPendingPosts();
     session.refreshRegionPosts();
@@ -59,29 +75,17 @@ class _PostsListViewState extends State<PostsListView> with SingleTickerProvider
     final session = Get.find<SessionController>();
     return Scaffold(
       backgroundColor: HomeColors.paper,
-      appBar: AppBar(
-        backgroundColor: HomeColors.navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text('region_posts'.tr),
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: HomeColors.navy,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-        ),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
-        ),
-        scrolledUnderElevation: 0,
-        shadowColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
+      appBar: OrganicAppBar(
+        title: 'region_posts'.tr,
+        // The strip sits on the mint under the pill now, not inside a green
+        // field, so its type goes dark.
         bottom: TabBar(
           controller: _tabs,
-          indicatorColor: HomeColors.orange,
+          indicatorColor: Iro.bright,
           indicatorWeight: 3,
           dividerColor: Colors.transparent,
-          labelColor: Colors.white,
-          unselectedLabelColor: const Color(0xB3FFFFFF),
+          labelColor: Iro.forest,
+          unselectedLabelColor: Iro.muted,
           labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
           tabs: [
             Tab(text: 'my_posts'.trFallback('My posts')),
@@ -96,7 +100,7 @@ class _PostsListViewState extends State<PostsListView> with SingleTickerProvider
         return TabBarView(
           controller: _tabs,
           children: [
-            _PostsPane(posts: session.myPosts(), emptyKey: 'my_posts_empty'),
+            _PostsPane(posts: session.myPosts(), emptyKey: 'my_posts_empty', canVote: false),
             _PostsPane(posts: session.otherPosts(), emptyKey: 'other_posts_empty'),
           ],
         );
@@ -106,9 +110,12 @@ class _PostsListViewState extends State<PostsListView> with SingleTickerProvider
 }
 
 class _PostsPane extends StatelessWidget {
-  const _PostsPane({required this.posts, required this.emptyKey});
+  const _PostsPane({required this.posts, required this.emptyKey, this.canVote = true});
   final List<Map<String, dynamic>> posts;
   final String emptyKey;
+
+  /// False on the member's own posts: the figures show, the buttons do not.
+  final bool canVote;
 
   @override
   Widget build(BuildContext context) {
@@ -129,7 +136,7 @@ class _PostsPane extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
       itemCount: posts.length,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) => RegionPostCard(post: posts[index]),
+      itemBuilder: (context, index) => RegionPostCard(post: posts[index], canVote: canVote),
     );
   }
 }
@@ -278,6 +285,14 @@ class _CreatePostViewState extends State<CreatePostView> {
     return false;
   }
 
+  /// Empties the media slot. A file the composer refused must not leave the one
+  /// it was replacing on screen — Replace keeps the old path until a pick is
+  /// accepted, so the rejection has to undo it.
+  void _clearMedia() {
+    mediaPath.value = null;
+    thumbPath.value = null;
+  }
+
   void _useKind(_PostMediaKind kind) {
     if (mediaKind.value != kind) {
       mediaPath.value = null;
@@ -357,6 +372,7 @@ class _CreatePostViewState extends State<CreatePostView> {
       if (picked == null) return;
       final tooLong = await postMediaDurationError(picked.path, video: true);
       if (tooLong != null) {
+        _clearMedia();
         flash('Error', tooLong);
         return;
       }
@@ -402,6 +418,7 @@ class _CreatePostViewState extends State<CreatePostView> {
       if (path == null || path.isEmpty) return;
       final tooLong = await postMediaDurationError(path, video: false);
       if (tooLong != null) {
+        _clearMedia();
         flash('Error', tooLong);
         return;
       }
@@ -561,7 +578,7 @@ class _CreatePostViewState extends State<CreatePostView> {
 
   @override
   Widget build(BuildContext context) {
-    const cream = Color(0xFFF8F4E9);
+    const cream = Iro.mint;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -572,13 +589,14 @@ class _CreatePostViewState extends State<CreatePostView> {
       backgroundColor: cream,
       appBar: OrganicAppBar(
         title: 'create_post'.trFallback('Create post'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () {
-            if (submitting.value) return;
-            _openRegionPosts();
-          },
-        ),
+        // Back goes to the posts list rather than popping, and is ignored
+        // mid-submit. The bar draws the arrow itself, so handing it the
+        // behaviour is enough — passing a button of our own put a second
+        // arrow on the opposite side.
+        onBack: () {
+          if (submitting.value) return;
+          _openRegionPosts();
+        },
       ),
       body: Stack(
         children: [
@@ -588,12 +606,12 @@ class _CreatePostViewState extends State<CreatePostView> {
         children: [
           Text(
             'sharing_title'.trFallback('What are you sharing?'),
-            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Color(0xFF1A1325), height: 1.15),
+            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Iro.ink, height: 1.15),
           ),
           const SizedBox(height: 8),
           Text(
             'create_post_issue_first'.trFallback('Select the issue first. Then add media.'),
-            style: const TextStyle(color: Color(0xFF7A746C), fontSize: 13.5, height: 1.4),
+            style: const TextStyle(color: Iro.muted, fontSize: 13.5, height: 1.4),
           ),
           const SizedBox(height: 18),
           Obx(
@@ -611,6 +629,7 @@ class _CreatePostViewState extends State<CreatePostView> {
                   // The panel stops itself at a minute; confirm the file agrees.
                   final tooLong = await postMediaDurationError(path, video: false);
                   if (tooLong != null) {
+                    _clearMedia();
                     recording.value = false;
                     flash('Error', tooLong);
                     return;
@@ -638,8 +657,10 @@ class _CreatePostViewState extends State<CreatePostView> {
               },
             );
           }),
+          // The document option used to appear only once media had been added,
+          // which hid it on the screen a member first lands on. It stands on its
+          // own now; the post still needs media to submit.
           Obx(() {
-            if (mediaPath.value == null) return const SizedBox.shrink();
             if (documentPath.value != null) {
               return Padding(
                 padding: const EdgeInsets.only(top: 12),
@@ -676,7 +697,7 @@ class _CreatePostViewState extends State<CreatePostView> {
           const SizedBox(height: 22),
           Text(
             '${'post_description'.trFallback('Description')} (${'optional'.trFallback('optional')})',
-            style: const TextStyle(color: Color(0xFF1A1325), fontWeight: FontWeight.w700, fontSize: 13),
+            style: const TextStyle(color: Iro.ink, fontWeight: FontWeight.w700, fontSize: 13),
           ),
           TextField(
             controller: description,
@@ -686,9 +707,9 @@ class _CreatePostViewState extends State<CreatePostView> {
             cursorColor: HomeColors.orange,
             decoration: InputDecoration(
               hintText: 'post_description_hint'.trFallback('Write a short update if you want'),
-              hintStyle: const TextStyle(color: Color(0xFFB0A89C), fontSize: 14),
-              border: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFD8D0C4))),
-              enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFD8D0C4))),
+              hintStyle: const TextStyle(color: Iro.muted2, fontSize: 14),
+              border: const UnderlineInputBorder(borderSide: BorderSide(color: Iro.line)),
+              enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Iro.line)),
               focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: HomeColors.orange, width: 1.4)),
             ),
           ),
@@ -790,7 +811,7 @@ class _IssueDropdown extends StatelessWidget {
           height: 44,
           padding: const EdgeInsets.fromLTRB(12, 0, 8, 0),
           decoration: BoxDecoration(
-            color: filled ? const Color(0xFFFFF7EC) : const Color(0xFFFFF1E0),
+            color: filled ? Iro.wash2 : Iro.wash,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: HomeColors.orange, width: 1.2),
           ),
@@ -812,7 +833,7 @@ class _IssueDropdown extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.right,
                   style: TextStyle(
-                    color: filled ? const Color(0xFF1A1325) : const Color(0xFF9A6A3A),
+                    color: filled ? Iro.ink : Iro.ink2,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
@@ -861,7 +882,7 @@ class _AddDocumentTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFFF3EEE6),
+      color: Iro.wash2,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -871,18 +892,18 @@ class _AddDocumentTile extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE4DCD0)),
+            border: Border.all(color: Iro.line),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.insert_drive_file_outlined, color: HomeColors.orange, size: 30),
               const SizedBox(height: 8),
-              Text('add_document'.trFallback('Add document'), style: const TextStyle(color: Color(0xFF1A1325), fontWeight: FontWeight.w800)),
+              Text('add_document'.trFallback('Add document'), style: const TextStyle(color: Iro.ink, fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
               Text(
                 'add_document_hint'.trFallback('PDF, Word or a photo of the document'),
-                style: const TextStyle(color: Color(0xFF8A847A), fontSize: 12),
+                style: const TextStyle(color: Iro.muted, fontSize: 12),
               ),
             ],
           ),
@@ -907,7 +928,7 @@ class _DocumentChip extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE4DCD0)),
+          border: Border.all(color: Iro.line),
         ),
         child: Row(
           children: [
@@ -918,7 +939,7 @@ class _DocumentChip extends StatelessWidget {
                 name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF1A1325)),
+                style: const TextStyle(fontWeight: FontWeight.w700, color: Iro.ink),
               ),
             ),
             IconButton(
@@ -939,7 +960,7 @@ class _AddMediaTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFFF3EEE6),
+      color: Iro.wash2,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -949,18 +970,18 @@ class _AddMediaTile extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE4DCD0)),
+            border: Border.all(color: Iro.line),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.add_photo_alternate_outlined, color: HomeColors.orange, size: 32),
               const SizedBox(height: 8),
-              Text('add_media'.trFallback('Add media'), style: const TextStyle(color: Color(0xFF1A1325), fontWeight: FontWeight.w800)),
+              Text('add_media'.trFallback('Add media'), style: const TextStyle(color: Iro.ink, fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
               Text(
                 'add_media_hint'.trFallback('Camera, record or gallery'),
-                style: const TextStyle(color: Color(0xFF8A847A), fontSize: 12),
+                style: const TextStyle(color: Iro.muted, fontSize: 12),
               ),
             ],
           ),
@@ -1081,7 +1102,7 @@ class _MediaChoiceSheetState extends State<_MediaChoiceSheet> {
               child: Container(
                 width: 36,
                 height: 4,
-                decoration: BoxDecoration(color: const Color(0xFFE4DCD0), borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(color: Iro.line, borderRadius: BorderRadius.circular(2)),
               ),
             ),
             const SizedBox(height: 8),
@@ -1091,12 +1112,12 @@ class _MediaChoiceSheetState extends State<_MediaChoiceSheet> {
                   IconButton(
                     visualDensity: VisualDensity.compact,
                     onPressed: () => setState(() => page = _MediaSheetPage.root),
-                    icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF1A1325)),
+                    icon: const Icon(Icons.arrow_back_rounded, color: Iro.ink),
                   ),
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(0xFF1A1325)),
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Iro.ink),
                   ),
                 ),
               ],
@@ -1112,7 +1133,7 @@ class _MediaChoiceSheetState extends State<_MediaChoiceSheet> {
                   child: Icon(option.$1, color: HomeColors.orange),
                 ),
                 title: Text(option.$2, style: const TextStyle(fontWeight: FontWeight.w700)),
-                subtitle: Text(option.$3, style: const TextStyle(fontSize: 12, color: Color(0xFF8A847A))),
+                subtitle: Text(option.$3, style: const TextStyle(fontSize: 12, color: Iro.muted)),
                 onTap: option.$4,
               ),
           ],
@@ -1122,106 +1143,306 @@ class _MediaChoiceSheetState extends State<_MediaChoiceSheet> {
   }
 }
 
-class RegionPostCard extends StatelessWidget {
-  const RegionPostCard({super.key, required this.post, this.compact = false, this.onTap});
+/// A post in a list, built the way Home builds one: a media header with the
+/// issue and the place laid over it, then the title, the account, and a footer
+/// carrying the votes and how many people have opened it.
+///
+/// [canVote] is what separates the two panes. On another member's post the
+/// like and dislike are buttons; on the member's own they are the figures with
+/// no invitation attached, because voting on yourself is not a thing.
+class RegionPostCard extends StatefulWidget {
+  const RegionPostCard({
+    super.key,
+    required this.post,
+    this.compact = false,
+    this.onTap,
+    this.canVote = true,
+  });
+
   final Map<String, dynamic> post;
   final bool compact;
+
+  /// Overrides the default jump to the detail screen, so a caller that needs to
+  /// reload its own list when the member comes back can await the push.
   final VoidCallback? onTap;
+  final bool canVote;
+
+  @override
+  State<RegionPostCard> createState() => _RegionPostCardState();
+}
+
+class _RegionPostCardState extends State<RegionPostCard> {
+  bool sending = false;
+
+  Map<String, dynamic> get post => widget.post;
+
+  /// A post that has not reached the server has no row to vote against.
+  bool get _pending => post['pending'] == true || '${post['serverId'] ?? ''}'.isEmpty;
+
+  Future<void> _vote(String side) async {
+    if (sending || _pending) return;
+    setState(() => sending = true);
+    try {
+      await Get.find<SessionController>().voteOnPost(post, side);
+    } catch (e) {
+      flash('Error', apiErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => sending = false);
+    }
+  }
+
+  void _open() {
+    final tap = widget.onTap;
+    if (tap != null) {
+      tap();
+      return;
+    }
+    Get.toNamed(Routes.postDetail, arguments: post);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final type = isVideoPost(post) ? 'video' : '${post['mediaType'] ?? 'image'}'.toLowerCase();
-    final raw = post['mediaUrl'] ?? post['mediaPath'] ?? post['photoPath'] ?? post['mediaKey'];
-    final path = switch (type) {
-      'video' => postVideoUrl(post) ?? postImageUrl(post) ?? localPhotoPath(raw),
-      'audio' => postAudioUrl(post) ?? localPhotoPath(raw),
-      _ => postImageUrl(post) ?? localPhotoPath(raw),
+    final category = issueCategoryLabelOf(post);
+    final title = issueLabelOf(post);
+    final body = '${post['description'] ?? ''}'.trim();
+    final place = '${post['regionLabel'] ?? ''}'.trim();
+    final image = post['thumbnailUrl'] ?? post['thumbnailPath'] ?? postImageUrl(post) ?? localPhotoPath(post['mediaPath'] ?? post['photoPath']);
+    final icon = issueIconOf(post);
+    final myVote = '${post['myVote'] ?? ''}'.toUpperCase();
+    final likes = (post['likes'] as num?)?.round() ?? 0;
+    final dislikes = (post['dislikes'] as num?)?.round() ?? 0;
+    final views = (post['views'] as num?)?.round() ?? 0;
+    final resolved = '${post['status'] ?? ''}'.toUpperCase() == 'RESOLVED';
+    final kind = isVideoPost(post) ? 'video' : '${post['mediaType'] ?? 'image'}'.toLowerCase();
+    final playable = switch (kind) {
+      'video' => Icons.play_arrow_rounded,
+      'audio' => Icons.headphones_rounded,
+      _ => null,
     };
-    final thumb = post['thumbnailUrl'] ?? post['thumbnailPath'] ?? post['thumbnailKey'] ?? resolveStreamThumbnailUrl(raw) ?? postImageUrl(post);
-    final description = '${post['description'] ?? ''}';
-    final issue = issueLabelOf(post);
-    final height = compact ? 110.0 : 148.0;
-    final hasMedia = type == 'video' || (path != null && path.isNotEmpty);
-    return Material(
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: HomeColors.border, width: 0.5),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap ?? () => Get.toNamed(Routes.postDetail, arguments: post),
-        child: Column(
+    final when = lastActiveWhen(post['createdAt']);
+    final author = '${post['authorName'] ?? ''}'.trim();
+    final assignedToMe = post['isAssignedToMe'] == true;
+    final assigner = '${post['assignedByName'] ?? ''}'.trim();
+    final assignee = '${post['assigneeName'] ?? ''}'.trim();
+
+    return IroCard(
+      margin: EdgeInsets.zero,
+      padding: EdgeInsets.zero,
+      onTap: _open,
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          if (hasMedia)
-            _PostMediaTile(type: type, path: path, thumbnail: thumb, height: height),
-          ColoredBox(
-            color: Colors.white,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (issue.isNotEmpty) ...[
-                    IssueChip(label: issue, priority: issuePriorityOf(post)),
-                    const SizedBox(height: 8),
-                  ],
-                  if (description.isNotEmpty) ...[
-                    Text(
-                      description,
-                      maxLines: compact ? 2 : 6,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 14, height: 1.4, color: HomeColors.ink),
+          SizedBox(
+            height: widget.compact ? 112 : 148,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                IroPhoto(url: image?.toString(), icon: icon, seed: title.length),
+                // Dark at both ends so a white chip reads over a bright photo
+                // and a dark one reads over a pale sky.
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0x4D0C3320), Color(0x00000000), Color(0x800C3320)],
+                      stops: [0, 0.4, 1],
                     ),
-                    const SizedBox(height: 8),
-                  ],
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          lastActiveWhen(post['createdAt']),
-                          style: const TextStyle(fontSize: 12, color: HomeColors.muted),
-                        ),
-                      ),
-                      if ('${post['status'] ?? ''}'.toUpperCase() == 'RESOLVED')
-                        Text(
-                          'resolve_resolved'.trFallback('Resolved'),
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: HomeColors.teal),
-                        ),
-                    ],
                   ),
-                  if ('${post['authorName'] ?? ''}'.trim().isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      '${'posted_by'.trFallback('Posted by')} ${post['authorName']}',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: HomeColors.ink),
-                    ),
-                  ],
-                  if (post['isAssignedToMe'] == true) ...[
-                    if ('${post['assignedByName'] ?? ''}'.trim().isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        '${'post_assigned_by'.trFallback('Assigned by')} ${post['assignedByName']}'
-                        '${'${post['assignedByPostLabel'] ?? ''}'.trim().isEmpty ? '' : ' · ${post['assignedByPostLabel']}'}',
-                        style: const TextStyle(fontSize: 12, color: HomeColors.ink),
+                ),
+                if (category.isNotEmpty)
+                  Positioned(
+                    left: 9,
+                    top: 9,
+                    child: SizedBox(
+                      width: 190,
+                      child: IroChip(
+                        category,
+                        dense: true,
+                        size: 9.5,
+                        icon: icon,
+                        fg: Colors.white,
+                        bg: const Color(0xD9114A2C),
                       ),
-                    ],
-                  ] else if ('${post['assigneeName'] ?? ''}'.trim().isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      '${'assigned_to'.trFallback('Assigned to')} ${post['assigneeName']}'
-                      '${'${post['assigneePostLabel'] ?? ''}'.trim().isEmpty ? '' : ' · ${post['assigneePostLabel']}'}',
-                      style: const TextStyle(fontSize: 12, color: HomeColors.ink),
+                    ),
+                  ),
+                if (place.isNotEmpty)
+                  Positioned(
+                    left: 9,
+                    bottom: 9,
+                    child: SizedBox(
+                      width: 190,
+                      child: IroChip(place, dense: true, size: 9.5, fg: Iro.ink, bg: const Color(0xF2FFFFFF)),
+                    ),
+                  ),
+                if (post['authorVerified'] == true)
+                  const Positioned(
+                    right: 9,
+                    top: 9,
+                    child: Icon(Icons.verified_rounded, size: 17, color: Colors.white),
+                  ),
+                // A still frame looks the same whether there is a video behind
+                // it or not, so anything playable says so.
+                if (playable != null) Center(child: _PlayBadge(icon: playable)),
+                if (resolved)
+                  Positioned(
+                    right: 9,
+                    bottom: 9,
+                    child: IroChip(
+                      'resolve_resolved'.tr,
+                      dense: true,
+                      size: 9,
+                      fg: Colors.white,
+                      bg: const Color(0xD91C7D48),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: iroDisplay(size: 15)),
+                if (body.isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  // The card grows with what was written, up to a cap — a
+                  // 2000-character grievance must not run off the screen.
+                  Text(
+                    body,
+                    maxLines: widget.compact ? 2 : 6,
+                    overflow: TextOverflow.ellipsis,
+                    style: iroLabel(size: 11.5, color: Iro.muted, weight: FontWeight.w500).copyWith(height: 1.45),
+                  ),
+                ],
+                if (author.isNotEmpty || assignee.isNotEmpty || assigner.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _PostPeople(
+                    author: author,
+                    assignedToMe: assignedToMe,
+                    assigner: assigner,
+                    assignerPost: '${post['assignedByPostLabel'] ?? ''}'.trim(),
+                    assignee: assignee,
+                    assigneePost: '${post['assigneePostLabel'] ?? ''}'.trim(),
+                  ),
+                ],
+                const SizedBox(height: 9),
+                Row(
+                  children: [
+                    IroVoteButton(
+                      icon: myVote == 'LIKE' ? Icons.thumb_up_rounded : Icons.thumb_up_outlined,
+                      count: likes,
+                      on: myVote == 'LIKE',
+                      tone: Iro.greenMid,
+                      enabled: !_pending,
+                      onTap: widget.canVote ? () => _vote('LIKE') : null,
+                    ),
+                    SizedBox(width: widget.canVote ? 8 : 14),
+                    IroVoteButton(
+                      icon: myVote == 'DISLIKE' ? Icons.thumb_down_rounded : Icons.thumb_down_outlined,
+                      count: dislikes,
+                      on: myVote == 'DISLIKE',
+                      tone: Iro.alert,
+                      enabled: !_pending,
+                      onTap: widget.canVote ? () => _vote('DISLIKE') : null,
+                    ),
+                    const Spacer(),
+                    if (views > 0) ...[IroViewCount(views), const SizedBox(width: 10)],
+                    Flexible(
+                      child: Text(
+                        when,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
+                        style: iroLabel(size: 11, color: Iro.muted, weight: FontWeight.w600),
+                      ),
                     ),
                   ],
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
-        ),
       ),
+    );
+  }
+}
+
+/// Sits over a thumbnail to say there is a video or a recording behind it.
+class _PlayBadge extends StatelessWidget {
+  const _PlayBadge({required this.icon});
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: const BoxDecoration(color: Color(0xCC0C3320), shape: BoxShape.circle),
+      child: Icon(icon, size: 22, color: Colors.white),
+    );
+  }
+}
+
+/// Who filed it and who is on it, one quiet line each.
+class _PostPeople extends StatelessWidget {
+  const _PostPeople({
+    required this.author,
+    required this.assignedToMe,
+    required this.assigner,
+    required this.assignerPost,
+    required this.assignee,
+    required this.assigneePost,
+  });
+
+  final String author;
+  final bool assignedToMe;
+  final String assigner;
+  final String assignerPost;
+  final String assignee;
+  final String assigneePost;
+
+  @override
+  Widget build(BuildContext context) {
+    // The assignee already knows it is theirs, so they are shown who handed it
+    // over instead of being told their own name.
+    final (label, name, post) = assignedToMe && assigner.isNotEmpty
+        ? ('post_assigned_by'.trFallback('Assigned by'), assigner, assignerPost)
+        : assignee.isNotEmpty
+            ? ('assigned_to'.trFallback('Assigned to'), assignee, assigneePost)
+            : ('', '', '');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (author.isNotEmpty)
+          _line('posted_by'.trFallback('Posted by'), author, ''),
+        if (name.isNotEmpty) ...[
+          if (author.isNotEmpty) const SizedBox(height: 3),
+          _line(label, name, post),
+        ],
+      ],
+    );
+  }
+
+  Widget _line(String label, String name, String post) {
+    final tail = post.isEmpty ? name : '$name · $post';
+    return Row(
+      children: [
+        Text('$label ', style: iroLabel(size: 11, color: Iro.muted, weight: FontWeight.w600)),
+        Expanded(
+          child: Text(
+            tail,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: iroLabel(size: 11, color: Iro.ink2, weight: FontWeight.w700),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1298,16 +1519,16 @@ class _ComposerMedia extends StatelessWidget {
           height: 168,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: const Color(0xFFF3EEE6),
+            color: Iro.wash2,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE4DCD0)),
+            border: Border.all(color: Iro.line),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, color: HomeColors.orange, size: 30),
               const SizedBox(height: 8),
-              Text(label, style: const TextStyle(color: Color(0xFF1A1325), fontWeight: FontWeight.w700)),
+              Text(label, style: const TextStyle(color: Iro.ink, fontWeight: FontWeight.w700)),
             ],
           ),
         ),
@@ -1346,7 +1567,7 @@ class _ComposerMedia extends StatelessWidget {
               onTap: onReplace,
             ),
             const SizedBox(width: 8),
-            Container(width: 1, height: 16, color: const Color(0xFFD8D0C4)),
+            Container(width: 1, height: 16, color: Iro.line),
             const SizedBox(width: 8),
             _TextAction(
               icon: Icons.delete_outline_rounded,
@@ -1395,17 +1616,17 @@ class _NeedsSignalBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: muted ? const Color(0xFFE8E4DC) : const Color(0xFFE8E4DC),
+        color: muted ? Iro.line : Iro.line,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.schedule_rounded, size: 13, color: muted ? const Color(0xFF7A746C) : const Color(0xFF5C564E)),
+          Icon(Icons.schedule_rounded, size: 13, color: muted ? Iro.muted : Iro.ink2),
           const SizedBox(width: 4),
           Text(
             'needs_signal'.trFallback('NEEDS SIGNAL'),
-            style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 0.3, color: Color(0xFF5C564E)),
+            style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 0.3, color: Iro.ink2),
           ),
         ],
       ),
@@ -1422,7 +1643,7 @@ class _TextAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tint = color ?? const Color(0xFF1A1325);
+    final tint = color ?? Iro.ink;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -1448,22 +1669,36 @@ class _PostUpdateButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: enabled || loading ? HomeColors.orange : const Color(0xFFE4DCD0),
-      borderRadius: BorderRadius.circular(28),
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(28),
-        child: SizedBox(
-          height: 54,
-          child: Center(
-            child: loading
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
-                  )
-                : Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+    final radius = BorderRadius.circular(28);
+    final live = enabled || loading;
+    return DecoratedBox(
+      // The same fill as the create button in the tab bar — this is the end of
+      // the flow that button starts.
+      decoration: BoxDecoration(
+        gradient: live ? Iro.headerGradient : null,
+        color: live ? null : AppColors.rule2,
+        borderRadius: radius,
+        boxShadow: live
+            ? const [BoxShadow(color: Color(0x5915633A), blurRadius: 16, offset: Offset(0, 8))]
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: radius,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: radius,
+          child: SizedBox(
+            height: 54,
+            child: Center(
+              child: loading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+                    )
+                  : Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+            ),
           ),
         ),
       ),
@@ -1514,32 +1749,3 @@ class _PostSubmittingOverlay extends StatelessWidget {
     );
   }
 }
-
-class _PostMediaTile extends StatelessWidget {
-  const _PostMediaTile({required this.type, required this.path, required this.height, this.thumbnail});
-  final String type;
-  final String? path;
-  final Object? thumbnail;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    if (type == 'video') {
-      return VideoThumbTile(videoPath: path ?? '', thumbnail: thumbnail, height: height);
-    }
-    if (path == null || path!.isEmpty) {
-      return ColoredBox(color: HomeColors.navy, child: SizedBox(height: height, width: double.infinity));
-    }
-    if (type == 'audio') return AudioListenBar(path: path!, compact: height < 150);
-    return SizedBox(
-      height: height,
-      width: double.infinity,
-      child: localOrNetworkPhoto(
-        raw: path,
-        fit: BoxFit.cover,
-        fallback: const ColoredBox(color: HomeColors.navy),
-      ),
-    );
-  }
-}
-

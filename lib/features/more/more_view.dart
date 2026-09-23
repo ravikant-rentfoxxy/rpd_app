@@ -27,7 +27,13 @@ class MoreView extends StatelessWidget {
               child: CardTitle('verification_inbox'.trFallback('Verification inbox')),
             ),
           AppCard(
-            onTap: () => Get.toNamed(Routes.members),
+            // Adding a member is what this is nearly always tapped for, so it
+            // opens there. My recruits is pushed underneath first, so Back
+            // lands on the list rather than dropping straight out to More.
+            onTap: () {
+              Get.toNamed(Routes.members);
+              Get.toNamed(Routes.addMember);
+            },
             child: CardTitle('members'.tr, sub: 'members_more_sub'.trFallback('Add members and see your recruits')),
           ),
           AppCard(
@@ -40,6 +46,15 @@ class MoreView extends StatelessWidget {
           AppCard(
             onTap: () => Get.toNamed(Routes.posts),
             child: CardTitle('region_posts'.tr, sub: 'region_posts_sub'.tr),
+          ),
+          // The board moved off the tab bar to make room for Community, so it
+          // is reached from here.
+          AppCard(
+            onTap: () => Get.toNamed(Routes.leaderboard),
+            child: CardTitle(
+              'leaderboard_nav'.trFallback('Rank'),
+              sub: 'leaderboard_sub'.trFallback('Where you stand in your area'),
+            ),
           ),
           if (session.canCreateOrgEvents)
             AppCard(
@@ -56,6 +71,15 @@ class MoreView extends StatelessWidget {
           AppCard(
             onTap: () => Get.toNamed(Routes.districtHealth),
             child: CardTitle('district_health'.tr, sub: 'district_health_sub'.tr),
+          ),
+          // What has been handed to this member. Sits above Create task so the
+          // two read as a pair: your own work first, then work you hand out.
+          AppCard(
+            onTap: () => Get.toNamed(Routes.tasks),
+            child: CardTitle(
+              'my_tasks'.tr,
+              sub: 'my_tasks_sub'.trFallback('Work assigned to you, and events you joined'),
+            ),
           ),
           if (session.canCreateOrgEvents)
             AppCard(

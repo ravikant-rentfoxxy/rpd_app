@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/theme/app_colors.dart';
+import 'content_vote_bar.dart';
 import '../../data/models/home_feed.dart';
+import '../../core/widgets/ui.dart';
 
 class YoutubePlayerView extends StatefulWidget {
   const YoutubePlayerView({super.key});
@@ -44,7 +46,9 @@ class _YoutubePlayerViewState extends State<YoutubePlayerView> {
     final videoId = item.youtubeId;
     return Scaffold(
       backgroundColor: AppColors.paper,
-      appBar: AppBar(title: Text(item.source)),
+      // The bar was titled with the publisher; with none recorded it falls back
+      // to the video's own title rather than standing empty.
+      appBar: OrganicAppBar(title: item.source.trim().isEmpty ? item.title : item.source),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -76,8 +80,12 @@ class _YoutubePlayerViewState extends State<YoutubePlayerView> {
                   item.title,
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, height: 1.35),
                 ),
-                const SizedBox(height: 6),
-                Text(item.source, style: const TextStyle(color: AppColors.ink3, fontSize: 13)),
+                if (item.source.trim().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(item.source, style: const TextStyle(color: AppColors.ink3, fontSize: 13)),
+                ],
+                const SizedBox(height: 14),
+                ContentVoteBar(item: item),
               ],
             ),
           ),

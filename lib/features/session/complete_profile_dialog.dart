@@ -40,7 +40,7 @@ class CompleteProfileDialog extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'complete_profile_body'.trFallback(
-                'Add your name, pincode, state and assembly constituency in Profile first.',
+                'Add your name, state and assembly constituency in Profile first.',
               ),
               style: const TextStyle(fontSize: 14, height: 1.4, color: AppColors.ink2),
             ),

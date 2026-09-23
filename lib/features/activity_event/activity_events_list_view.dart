@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
@@ -48,17 +47,7 @@ class _ActivityEventsListViewState extends State<ActivityEventsListView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: HomeColors.paper,
-      appBar: AppBar(
-        backgroundColor: HomeColors.navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text('activity_events'.trFallback('Activity events')),
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: HomeColors.navy,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-        ),
-      ),
+      appBar: OrganicAppBar(title: 'activity_events'.trFallback('Activity events')),
       body: loading
           ? const Center(child: CircularProgressIndicator(color: HomeColors.orange))
           : RefreshIndicator(

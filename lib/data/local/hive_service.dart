@@ -40,9 +40,6 @@ class HiveService extends GetxService {
   String? get locale => settings.get('locale') as String?;
   Future<void> setLocale(String code) => settings.put('locale', code);
 
-  String? get apiBaseUrl => settings.get('api_base_url') as String?;
-  Future<void> setApiBaseUrl(String url) => settings.put('api_base_url', url);
-
   String? get accessToken => settings.get('access_token') as String?;
   String? get refreshToken => settings.get('refresh_token') as String?;
 

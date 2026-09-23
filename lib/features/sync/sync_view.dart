@@ -16,15 +16,7 @@ class SyncView extends StatelessWidget {
     final hive = Get.find<HiveService>();
     final items = hive.pendingSync().obs;
     return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('sync_queue'.tr),
-            Text('${items.length} items', style: const TextStyle(fontSize: 12, color: AppColors.ink3)),
-          ],
-        ),
-      ),
+      appBar: OrganicAppBar(title: 'sync_queue'.tr, subtitle: '${items.length} items'),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

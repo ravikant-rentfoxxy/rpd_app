@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import '../../core/constants/post_issues.dart';
 import '../../core/theme/app_colors.dart';
 import '../join/join_chrome.dart';
@@ -98,7 +97,7 @@ class _IssueSelectSheetState extends State<_IssueSelectSheet> {
       child: Align(
         alignment: Alignment.bottomCenter,
         child: Material(
-          color: const Color(0xFFF7F4EE),
+          color: Iro.mint,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           clipBehavior: Clip.antiAlias,
           child: SizedBox(
@@ -110,7 +109,7 @@ class _IssueSelectSheetState extends State<_IssueSelectSheet> {
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD8D2C6),
+                    color: Iro.line,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -149,7 +148,7 @@ class _IssueSelectSheetState extends State<_IssueSelectSheet> {
                               onSub
                                   ? 'issue_sheet_sub_step'.trFallback('Select the specific problem')
                                   : 'issue_sheet_sub'.trFallback('Select one to continue'),
-                              style: const TextStyle(color: Color(0xFF8A8478), fontSize: 15),
+                              style: const TextStyle(color: Iro.muted, fontSize: 15),
                             ),
                           ],
                         ),
@@ -171,8 +170,8 @@ class _IssueSelectSheetState extends State<_IssueSelectSheet> {
                       hintText: onSub
                           ? 'search_sub_issues'.trFallback('Search sub-issues')
                           : 'search_issues'.trFallback('Search issues'),
-                      hintStyle: const TextStyle(color: Color(0xFFB0A89C), fontSize: 15),
-                      prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFFB0A89C)),
+                      hintStyle: const TextStyle(color: Iro.muted2, fontSize: 15),
+                      prefixIcon: const Icon(Icons.search_rounded, color: Iro.muted2),
                       filled: true,
                       fillColor: Colors.white,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -189,7 +188,7 @@ class _IssueSelectSheetState extends State<_IssueSelectSheet> {
                     padding: const EdgeInsets.fromLTRB(22, 6, 22, 6),
                     child: Text(
                       onSub ? 'step_two_of_two'.trFallback('Step 2 of 2') : 'step_one_of_two'.trFallback('Step 1 of 2'),
-                      style: const TextStyle(color: Color(0xFF8A8478), fontSize: 14, fontWeight: FontWeight.w600),
+                      style: const TextStyle(color: Iro.muted, fontSize: 14, fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),
@@ -198,7 +197,7 @@ class _IssueSelectSheetState extends State<_IssueSelectSheet> {
                       ? Center(
                           child: Text(
                             'no_matches'.trFallback('No matches'),
-                            style: const TextStyle(color: Color(0xFF8A8478), fontWeight: FontWeight.w600),
+                            style: const TextStyle(color: Iro.muted, fontWeight: FontWeight.w600),
                           ),
                         )
                       : ListView.builder(
@@ -253,7 +252,7 @@ class _IssueRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Material(
-        color: selected ? const Color(0xFFFFF3E4) : Colors.transparent,
+        color: selected ? Iro.wash : Colors.transparent,
         borderRadius: BorderRadius.circular(22),
         child: InkWell(
           onTap: onTap,
@@ -281,16 +280,16 @@ class _IssueRow extends StatelessWidget {
                   ),
                 ),
                 if (showChevron)
-                  const Icon(Icons.chevron_right_rounded, color: Color(0xFFC56A1A))
+                  const Icon(Icons.chevron_right_rounded, color: Iro.greenMid)
                 else if (selected)
-                  const Icon(Icons.check_rounded, color: Color(0xFFC56A1A), size: 22)
+                  const Icon(Icons.check_rounded, color: Iro.greenMid, size: 22)
                 else
                   Container(
                     width: 22,
                     height: 22,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFFD8D2C6), width: 1.6),
+                      border: Border.all(color: Iro.line, width: 1.6),
                     ),
                   ),
               ],
@@ -332,7 +331,7 @@ class _IssueRow extends StatelessWidget {
       (wash: const Color(0xFFCDEECA), ink: const Color(0xFF2F7A3A)),
     'GOVERNANCE' || 'BRIBE' || 'FUND_MISUSE' || 'NO_GRAM_SABHA' || 'OFFICIAL_ABSENT' || 'ILLEGAL_LIQUOR' || 'TRANSPORT' || 'NETWORK' =>
       (wash: const Color(0xFFFFD8C8), ink: const Color(0xFFB04A28)),
-    _ => (wash: const Color(0xFFE8E4DC), ink: const Color(0xFF6D6775)),
+    _ => (wash: Iro.line, ink: const Color(0xFF6D6775)),
   };
 }
 

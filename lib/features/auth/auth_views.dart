@@ -97,7 +97,9 @@ class _MobileViewState extends State<MobileView> {
                   Obx(
                     () => PrimaryButton(
                       'send_code'.tr,
-                      enabled: !loading.value,
+                      // The same fill as the create button, so the one action on
+                      // each screen looks the same wherever a member meets it.
+                                      enabled: !loading.value,
                       onTap: _sendOtp,
                     ),
                   ),
@@ -275,7 +277,7 @@ class _OtpViewState extends State<OtpView> {
                             otpTick.value;
                             return PrimaryButton(
                               'continue'.tr,
-                              enabled: !loading.value && code.text.replaceAll(RegExp(r'\D'), '').length == 6,
+                                                      enabled: !loading.value && code.text.replaceAll(RegExp(r'\D'), '').length == 6,
                               onTap: () => _verify(code.text.replaceAll(RegExp(r'\D'), '')),
                             );
                           }),

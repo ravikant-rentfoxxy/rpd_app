@@ -84,17 +84,7 @@ class _ActivityEventPlayViewState extends State<ActivityEventPlayView> {
     final showResults = answered || isCreator;
     return Scaffold(
       backgroundColor: HomeColors.paper,
-      appBar: AppBar(
-        backgroundColor: HomeColors.navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text('activity_event'.trFallback('Activity event')),
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: HomeColors.navy,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-        ),
-      ),
+      appBar: OrganicAppBar(title: 'activity_event'.trFallback('Activity event')),
       bottomNavigationBar: loading || answered
           ? null
           : SafeArea(

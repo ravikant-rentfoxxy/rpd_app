@@ -92,17 +92,7 @@ class _EngagementPlayViewState extends State<EngagementPlayView> {
     final pollCounts = result?['pollCounts'] is Map ? Map<String, dynamic>.from(result!['pollCounts'] as Map) : null;
     return Scaffold(
       backgroundColor: HomeColors.paper,
-      appBar: AppBar(
-        backgroundColor: HomeColors.navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text(event['title'] as String? ?? 'engagement_play'.tr),
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: HomeColors.navy,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-        ),
-      ),
+      appBar: OrganicAppBar(title: event['title'] as String? ?? 'engagement_play'.tr),
       bottomNavigationBar: result != null || loading
           ? null
           : SafeArea(

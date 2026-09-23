@@ -14,10 +14,25 @@ import '../../core/utils/local_image.dart';
 import '../session/session_controller.dart';
 import '../../core/widgets/flash.dart';
 
+/// The card carries its own palette rather than the app's.
+///
+/// It is a printed object — a member shows it, photographs it and shares it —
+/// so it stayed purple and orange when the rest of the app went green. The back
+/// was drawn with the shared VerifyColors names instead, which the retint
+/// pointed at the greens, and the two sides stopped matching.
 const _cardPurple = Color(0xFF4A1878);
 const _cardOrange = Color(0xFFE88224);
 const _cardCream = Color(0xFFFBF6EE);
 const _cardInk = Color(0xFF1B1740);
+
+/// The middle stop of the band across the top of the back, between the spine
+/// purple and the slant orange the front uses.
+const _cardPurpleSoft = Color(0xFF7A3BA8);
+const _cardOrangeSoft = Color(0xFFF3A961);
+
+/// Small-caps labels and the hairline between rows, both matching the front.
+const _cardMuted = Color(0xFF9A96A8);
+const _cardLine = Color(0xFFE7E1D6);
 
 Future<void> showMembershipCardOverlay() async {
   final session = Get.find<SessionController>();
@@ -387,14 +402,14 @@ class MembershipCardBack extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: ColoredBox(
-          color: VerifyColors.cream,
+          color: _cardCream,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
                 height: 6,
                 decoration: const BoxDecoration(
-                  gradient: LinearGradient(colors: [VerifyColors.purple, VerifyColors.soft, VerifyColors.orange]),
+                  gradient: LinearGradient(colors: [_cardPurple, _cardPurpleSoft, _cardOrange]),
                 ),
               ),
               Padding(
@@ -406,7 +421,7 @@ class MembershipCardBack extends StatelessWidget {
                       height: 22,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: VerifyColors.orange, width: 1.5),
+                        border: Border.all(color: _cardOrange, width: 1.5),
                       ),
                       child: ClipOval(child: Image.asset('assets/images/app_logo.png', fit: BoxFit.cover)),
                     ),
@@ -415,11 +430,11 @@ class MembershipCardBack extends StatelessWidget {
                       child: Text.rich(
                         TextSpan(
                           text: _t('party_full_name', 'राष्ट्रीय परिवर्तन दल'),
-                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: VerifyColors.ink),
+                          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: _cardInk),
                           children: [
                             TextSpan(
                               text: ' · ${_t('card_title', 'Membership card').toUpperCase()}',
-                              style: const TextStyle(color: VerifyColors.orange, fontWeight: FontWeight.w700),
+                              style: const TextStyle(color: _cardOrange, fontWeight: FontWeight.w700),
                             ),
                           ],
                         ),
@@ -460,11 +475,11 @@ class MembershipCardBack extends StatelessWidget {
                     children: [
                       Text(
                         _t('card_issued_on', 'Issued on').toUpperCase(),
-                        style: const TextStyle(fontSize: 7, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: VerifyColors.gray),
+                        style: const TextStyle(fontSize: 7, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: _cardMuted),
                       ),
                       Text(
                         issued,
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: VerifyColors.ink),
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _cardInk),
                       ),
                     ],
                   ),
@@ -473,7 +488,7 @@ class MembershipCardBack extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 7, 16, 7),
                 decoration: const BoxDecoration(
-                  gradient: LinearGradient(colors: [VerifyColors.orange, VerifyColors.orangeSoft]),
+                  gradient: LinearGradient(colors: [_cardOrange, _cardOrangeSoft]),
                 ),
                 child: Text(
                   _t('card_property', 'Property of राष्ट्रीय परिवर्तन दल. Report loss to your local unit office.'),
@@ -505,7 +520,7 @@ class _BackRow extends StatelessWidget {
       width: double.infinity,
       alignment: Alignment.centerLeft,
       padding: const EdgeInsets.only(top: 2, bottom: 3),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: VerifyColors.line))),
+      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: _cardLine))),
       child: FittedBox(
         alignment: Alignment.centerLeft,
         fit: BoxFit.scaleDown,
@@ -518,13 +533,13 @@ class _BackRow extends StatelessWidget {
               label.toUpperCase(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 7, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: VerifyColors.gray, height: 1.1),
+              style: const TextStyle(fontSize: 7, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: _cardMuted, height: 1.1),
             ),
             Text(
               value,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: VerifyColors.ink, height: 1.15),
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _cardInk, height: 1.15),
             ),
           ],
         ),

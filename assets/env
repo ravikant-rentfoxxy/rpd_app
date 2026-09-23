@@ -1,9 +1,0 @@
-# This Mac on Wi-Fi. Re-check the IP with `ipconfig getifaddr en0` after changing network.
-API_BASE_URL=http://192.168.0.102:4000
-#API_BASE_URL=https://rpd-backend.vercel.app
-# API_LAN_URL is only needed when API_BASE_URL points at this machine (127.0.0.1)
-# API_LAN_URL=http://192.168.0.102:4000
-BUNNY_STORAGE_CDN=https://rentfoxxy-media.b-cdn.net
-BUNNY_STREAM_CDN=https://vz-8625e1d3-3b3.b-cdn.net
-BUNNY_STREAM_LIBRARY_ID=750289
-BUNNY_STREAM_EMBED=https://iframe.mediadelivery.net

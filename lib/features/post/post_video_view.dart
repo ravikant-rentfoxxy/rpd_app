@@ -8,6 +8,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/local_image.dart';
 import '../../core/utils/relative_time.dart';
 import '../join/join_chrome.dart';
+import '../../core/widgets/ui.dart';
 
 class PostVideoPlayerView extends StatefulWidget {
   const PostVideoPlayerView({super.key});
@@ -100,17 +101,7 @@ class _PostVideoPlayerViewState extends State<PostVideoPlayerView> {
     final description = '${args['description'] ?? ''}'.trim();
     return Scaffold(
       backgroundColor: HomeColors.paper,
-      appBar: AppBar(
-        backgroundColor: HomeColors.navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text('post_media_video'.trFallback('Video')),
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: HomeColors.navy,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-        ),
-      ),
+      appBar: OrganicAppBar(title: 'post_media_video'.trFallback('Video')),
       body: ListView(
         children: [
           ColoredBox(

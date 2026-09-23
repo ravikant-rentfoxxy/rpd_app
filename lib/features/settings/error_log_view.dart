@@ -12,8 +12,8 @@ class ErrorLogView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('error_log'.tr),
+      appBar: OrganicAppBar(
+        title: 'error_log'.tr,
         actions: [
           TextButton(
             onPressed: () {

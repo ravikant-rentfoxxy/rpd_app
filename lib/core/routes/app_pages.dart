@@ -14,6 +14,9 @@ import '../../data/models/home_feed.dart';
 import '../../features/session/session_controller.dart';
 import '../../features/join/join_views.dart';
 import '../../features/join/profile_basics_view.dart';
+import '../../features/community/story_detail_view.dart';
+import '../../features/home/district_map_view.dart';
+import '../../features/leaderboard/leaderboard_view.dart';
 import '../../features/meeting/meeting_views.dart';
 import '../../features/members/members_view.dart';
 import '../../features/settings/api_settings_view.dart';
@@ -76,7 +79,7 @@ class AppPages {
         final home = Get.find<SessionController>().home.value;
         return HomeFeedListView(
           title: 'recent_videos'.tr,
-          items: feedItemsFrom(home?['recentVideos'] as List?, fallback: recentVideos),
+          items: feedItemsFrom(home?['recentVideos'] as List?),
         );
       },
     ),
@@ -86,11 +89,14 @@ class AppPages {
         final home = Get.find<SessionController>().home.value;
         return HomeFeedListView(
           title: 'recent_blogs'.tr,
-          items: feedItemsFrom(home?['recentBlogs'] as List?, fallback: recentBlogs),
+          items: feedItemsFrom(home?['recentBlogs'] as List?),
         );
       },
     ),
     GetPage(name: Routes.blogArticle, page: () => const BlogArticleView()),
+    GetPage(name: Routes.story, page: () => const StoryDetailView()),
+    GetPage(name: Routes.districtMap, page: () => const DistrictMapView()),
+    GetPage(name: Routes.leaderboard, page: () => const LeaderboardView()),
     GetPage(
       name: Routes.nearbyActivity,
       page: () {

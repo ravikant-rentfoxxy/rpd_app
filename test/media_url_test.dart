@@ -1,17 +1,7 @@
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rpd_app/core/utils/media_url.dart';
 
 void main() {
-  setUpAll(() {
-    dotenv.testLoad(fileInput: '''
-BUNNY_STORAGE_CDN=https://rentfoxxy-media.b-cdn.net
-BUNNY_STREAM_CDN=https://vz-8625e1d3-3b3.b-cdn.net
-BUNNY_STREAM_LIBRARY_ID=750289
-BUNNY_STREAM_EMBED=https://iframe.mediadelivery.net
-''');
-  });
-
   const imageUrl =
       'https://rentfoxxy-media.b-cdn.net/posts/03523303-892c-4aac-8ca1-14f1ebb95f3a/d3457a98-1208-463c-a707-7269fc173ba1.jpg';
   const imageKey = 'posts/03523303-892c-4aac-8ca1-14f1ebb95f3a/d3457a98-1208-463c-a707-7269fc173ba1.jpg';

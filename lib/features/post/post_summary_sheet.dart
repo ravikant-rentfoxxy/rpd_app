@@ -9,6 +9,7 @@ import '../../core/utils/api_error.dart';
 import '../../core/utils/open_url.dart';
 import '../../core/widgets/flash.dart';
 import 'summary_loading.dart';
+import '../../core/constants/endpoints.dart';
 
 const _xLimit = 280;
 const _aiViolet = Color(0xFF7B5CF0);
@@ -113,7 +114,7 @@ class _PostSummarySheetState extends State<_PostSummarySheet> with TickerProvide
 
   Future<void> _postOnX() {
     return openExternalUrl(
-      'https://x.com/intent/post?text=${Uri.encodeComponent(_summary)}',
+      ExternalLinks.shareOnX(_summary),
       preferExternal: true,
     );
   }

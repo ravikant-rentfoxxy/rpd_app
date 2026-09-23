@@ -55,11 +55,11 @@ class _ProfileBasicsViewState extends State<ProfileBasicsView> {
         canPop: !c.saving.value,
         child: Scaffold(
           backgroundColor: HomeColors.paper,
-          appBar: OrganicAppBar(title: 'basics_title'.trFallback('A few details to continue')),
+          appBar: OrganicAppBar(title: 'verification_title'.trFallback('Verification')),
           body: Stack(
             children: [
               ListView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         children: [
           Center(
@@ -70,11 +70,11 @@ class _ProfileBasicsViewState extends State<ProfileBasicsView> {
                 child: Stack(
                   children: [
                     CircleAvatar(
-                      radius: 48,
+                      radius: 38,
                       backgroundColor: VerifyColors.pale,
                       backgroundImage: provider,
                       child: provider == null
-                          ? const Icon(Icons.person_outline_rounded, size: 44, color: VerifyColors.purple)
+                          ? const Icon(Icons.person_outline_rounded, size: 34, color: VerifyColors.purple)
                           : null,
                     ),
                     Positioned(
@@ -83,14 +83,14 @@ class _ProfileBasicsViewState extends State<ProfileBasicsView> {
                       child: GestureDetector(
                         onTap: c.openPhotoSheet,
                         child: Container(
-                          width: 32,
-                          height: 32,
+                          width: 28,
+                          height: 28,
                           decoration: BoxDecoration(
                             color: VerifyColors.orange,
                             shape: BoxShape.circle,
-                            border: Border.all(color: HomeColors.paper, width: 3),
+                            border: Border.all(color: HomeColors.paper, width: 2.5),
                           ),
-                          child: const Icon(Icons.photo_camera_outlined, size: 14, color: Colors.white),
+                          child: const Icon(Icons.photo_camera_outlined, size: 13, color: Colors.white),
                         ),
                       ),
                     ),
@@ -99,43 +99,84 @@ class _ProfileBasicsViewState extends State<ProfileBasicsView> {
               );
             }),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Obx(
             () => Text(
               c.photoProvider() == null ? 'photo_help'.tr : 'photo_view'.trFallback('Tap photo to view'),
               textAlign: TextAlign.center,
-              style: const TextStyle(color: HomeColors.muted, fontSize: 12),
+              style: const TextStyle(color: HomeColors.muted, fontSize: 11.5),
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 14),
           AppField(
             label: '${'full_name'.tr} *',
             controller: c.name,
             hint: 'enter_name'.tr,
             icon: Icons.person_outline_rounded,
+            verifyStyle: true,
           ),
+          // The number they just signed in with; it identifies them, so it is
+          // shown for confirmation but cannot be edited here.
           AppField(
-            label: '${'pincode'.tr} *',
-            controller: c.pincode,
-            hint: 'pincode_hint'.tr,
-            icon: Icons.credit_card_outlined,
-            keyboard: TextInputType.number,
-            digitsOnly: true,
-            maxLength: 6,
-            onChanged: c.onPincodeChanged,
+            label: 'mobile_number'.tr,
+            controller: c.mobile,
+            icon: Icons.phone_outlined,
+            readOnly: true,
+            verifyStyle: true,
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 4,
+                child: AppField(
+                  label: 'pincode'.tr,
+                  controller: c.pincode,
+                  hint: 'pincode_hint'.tr,
+                  icon: Icons.credit_card_outlined,
+                  keyboard: TextInputType.number,
+                  digitsOnly: true,
+                  maxLength: 6,
+                  onChanged: c.onPincodeChanged,
+                  verifyStyle: true,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 6,
+                child: Obx(
+                  () => AppSearchSelect(
+                    label: '${'state'.tr} *',
+                    hint: 'select_state'.tr,
+                    searchHint: 'search_state'.tr,
+                    emptyHint: 'no_matches'.tr,
+                    icon: Icons.map_outlined,
+                    value: c.states.any((s) => s.id == c.stateId.value) ? c.stateId.value : null,
+                    options: c.states.map((s) => SearchOption(id: s.id, name: s.name)).toList(),
+                    // Spins through the pincode lookup too, which is about to
+                    // set this for them.
+                    loading: c.loadingStates.value || c.lookingUpPin.value,
+                    onChanged: (id) => c.onStateChanged(id),
+                    verifyStyle: true,
+                  ),
+                ),
+              ),
+            ],
           ),
           Obx(
             () => AppSearchSelect(
-              label: '${'state'.tr} *',
-              hint: 'select_state'.tr,
-              searchHint: 'search_state'.tr,
+              label: '${'district'.tr} *',
+              hint: 'select_district'.tr,
+              searchHint: 'search_district'.tr,
               emptyHint: 'no_matches'.tr,
-              icon: Icons.map_outlined,
-              value: c.states.any((s) => s.id == c.stateId.value) ? c.stateId.value : null,
-              options: c.states.map((s) => SearchOption(id: s.id, name: s.name)).toList(),
-              loading: c.loadingStates.value || c.lookingUpPin.value,
-              enabled: false,
-              onChanged: c.onStateChanged,
+              icon: Icons.location_city_outlined,
+              value: c.districts.any((d) => d.id == c.districtId.value) ? c.districtId.value : null,
+              options: c.districts.map((d) => SearchOption(id: d.id, name: d.name)).toList(),
+              loading: c.loadingDistricts.value || c.lookingUpPin.value,
+              // Districts belong to a state, so there is nothing to show until one is picked.
+              enabled: c.stateId.value != null,
+              onChanged: (id) => c.onDistrictChanged(id),
+              verifyStyle: true,
             ),
           ),
           if (c.showReferral)
@@ -145,8 +186,9 @@ class _ProfileBasicsViewState extends State<ProfileBasicsView> {
               hint: 'referral_hint'.tr,
               icon: Icons.card_giftcard_outlined,
               maxLength: 32,
+              verifyStyle: true,
             ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           VerifyInfoBox(
             title: 'consent_collect_title'.trFallback('What we collect, and why'),
             paragraphs: [
@@ -178,7 +220,8 @@ class _ProfileBasicsViewState extends State<ProfileBasicsView> {
           Obx(
             () => PrimaryButton(
               c.saving.value ? '…' : 'continue'.tr,
-              enabled: !c.saving.value && c.acceptedConsent.value,
+              // A pincode lookup in flight is about to set state and district.
+              enabled: !c.saving.value && !c.lookingUpPin.value && c.acceptedConsent.value,
               onTap: c.submit,
             ),
           ),
@@ -206,22 +249,36 @@ class _ProfileBasicsViewState extends State<ProfileBasicsView> {
   }
 }
 
+String _displayMobile(Object? raw) {
+  final digits = '${raw ?? ''}'.replaceAll(RegExp(r'\D'), '');
+  if (digits.isEmpty) return '';
+  final last10 = digits.length > 10 ? digits.substring(digits.length - 10) : digits;
+  if (last10.length != 10) return '+91 $last10';
+  return '+91 ${last10.substring(0, 5)} ${last10.substring(5)}';
+}
+
 class _ProfileBasicsController extends GetxController {
   final api = Get.find<ApiClient>();
   final session = Get.find<SessionController>();
   final hive = Get.find<HiveService>();
 
   late final TextEditingController name;
+  late final TextEditingController mobile;
   late final TextEditingController pincode;
   final referral = TextEditingController();
   final states = <_GeoOption>[].obs;
+  final districts = <_GeoOption>[].obs;
   final stateId = RxnString();
+  final districtId = RxnString();
   final photoPath = Rxn<String>();
   final photoUrl = Rxn<String>();
   final loadingStates = false.obs;
+  final loadingDistricts = false.obs;
   final lookingUpPin = false.obs;
+
+  /// Guards against an earlier lookup landing after a later one.
+  int _pinLookup = 0;
   final saving = false.obs;
-  var _pinLookup = 0;
   final acceptedConsent = false.obs;
   final pledgeUpdates = false.obs;
 
@@ -236,12 +293,16 @@ class _ProfileBasicsController extends GetxController {
     final draftName = (hive.draft.get('fullName') as String?)?.trim() ?? '';
     final memberName = '${member['fullName'] ?? ''}'.trim();
     name = TextEditingController(text: draftName.isNotEmpty ? draftName : memberName);
+    mobile = TextEditingController(text: _displayMobile(member['mobile'] ?? hive.draft.get('mobile')));
     final draftPin = (hive.draft.get('pincode') as String?)?.trim() ?? '';
     final memberPin = '${member['pincode'] ?? ''}'.trim();
     pincode = TextEditingController(text: draftPin.isNotEmpty ? draftPin : memberPin);
     final draftState = (hive.draft.get('stateId') as String?)?.trim() ?? '';
     final memberState = '${member['stateId'] ?? ''}'.trim();
     stateId.value = draftState.isNotEmpty ? draftState : (memberState.isEmpty ? null : memberState);
+    final draftDistrict = (hive.draft.get('districtId') as String?)?.trim() ?? '';
+    final memberDistrict = '${member['districtId'] ?? ''}'.trim();
+    districtId.value = draftDistrict.isNotEmpty ? draftDistrict : (memberDistrict.isEmpty ? null : memberDistrict);
     final draftPhoto = (hive.draft.get('photoPath') as String?)?.trim() ?? '';
     photoPath.value = draftPhoto.isEmpty ? null : draftPhoto;
     final url = '${member['photoUrl'] ?? hive.draft.get('photoUrl') ?? ''}'.trim();
@@ -250,14 +311,12 @@ class _ProfileBasicsController extends GetxController {
     pledgeUpdates.value = hive.draft.get('pledgeUpdates') != false && member['whatsappOptIn'] != false;
     loadStates();
     session.captureLocation();
-    if (RegExp(r'^\d{6}$').hasMatch(pincode.text.trim())) {
-      lookupStateFromPincode(pincode.text.trim());
-    }
   }
 
   @override
   void onClose() {
     name.dispose();
+    mobile.dispose();
     pincode.dispose();
     referral.dispose();
     super.onClose();
@@ -325,16 +384,71 @@ class _ProfileBasicsController extends GetxController {
       );
       if (stateId.value != null && !states.any((s) => s.id == stateId.value)) {
         stateId.value = null;
+        districtId.value = null;
       }
     } catch (e, stack) {
       AppLog.error('basics loadStates failed', error: e, stack: stack, tag: 'JOIN');
     } finally {
       loadingStates.value = false;
     }
+    if (stateId.value != null) await loadDistricts();
   }
 
-  void onStateChanged(String? id) {
+  Future<void> loadDistricts() async {
+    final id = stateId.value;
+    if (id == null || id.isEmpty) {
+      districts.clear();
+      return;
+    }
+    loadingDistricts.value = true;
+    try {
+      final res = await api.get('/geo/districts', query: {'stateId': id});
+      final data = res['data'] is Map ? Map<String, dynamic>.from(res['data'] as Map) : res;
+      districts.assignAll(
+        ((data['districts'] as List?) ?? [])
+            .whereType<Map>()
+            .map((e) => _GeoOption(id: '${e['id']}', name: '${e['name'] ?? ''}'))
+            .where((e) => e.id.isNotEmpty && e.name.isNotEmpty)
+            .toList(),
+      );
+      if (districtId.value != null && !districts.any((d) => d.id == districtId.value)) {
+        districtId.value = null;
+      }
+    } catch (e, stack) {
+      AppLog.error('basics loadDistricts failed', error: e, stack: stack, tag: 'JOIN');
+    } finally {
+      loadingDistricts.value = false;
+    }
+  }
+
+  /// [fromPincode] marks the lookup setting this itself; a hand-picked state
+  /// means the pincode on screen no longer describes where they are, so it goes
+  /// with the district rather than being submitted alongside a contradiction.
+  Future<void> onStateChanged(String? id, {bool fromPincode = false}) async {
+    if (stateId.value == id) return;
     stateId.value = id;
+    if (!fromPincode && pincode.text.isNotEmpty) {
+      pincode.clear();
+      // Drop any lookup still in flight, or its reply would refill all three.
+      _pinLookup++;
+      lookingUpPin.value = false;
+    }
+    // The old district belongs to the old state.
+    districtId.value = null;
+    districts.clear();
+    await loadDistricts();
+  }
+
+  /// Same reasoning as [onStateChanged]: a pincode names one district, so
+  /// choosing a different one by hand leaves the pincode contradicting it.
+  void onDistrictChanged(String? id, {bool fromPincode = false}) {
+    if (districtId.value == id) return;
+    districtId.value = id;
+    if (!fromPincode && pincode.text.isNotEmpty) {
+      pincode.clear();
+      _pinLookup++;
+      lookingUpPin.value = false;
+    }
   }
 
   void onPincodeChanged(String value) {
@@ -347,6 +461,7 @@ class _ProfileBasicsController extends GetxController {
     if (pin.length != 6) return;
     lookingUpPin.value = true;
     try {
+      // Let them finish typing before asking the server.
       await Future<void>.delayed(const Duration(milliseconds: 250));
       if (token != _pinLookup) return;
       final hit = await lookupPincode(pin);
@@ -354,13 +469,28 @@ class _ProfileBasicsController extends GetxController {
       final id = pincodeStateId(hit);
       final name = pincodeStateName(hit);
       if (id == null) {
-        flash('Error', name.isEmpty ? 'pincode_invalid'.tr : 'pincode_state_unknown'.trParams({'state': name}));
+        flash(
+          'Error',
+          name.isEmpty ? 'pincode_invalid'.tr : 'pincode_state_unknown'.trParams({'state': name}),
+        );
         return;
       }
       if (!states.any((s) => s.id == id) && name.isNotEmpty) {
         states.add(_GeoOption(id: id, name: name));
       }
-      if (states.any((s) => s.id == id)) stateId.value = id;
+      if (states.any((s) => s.id == id) && stateId.value != id) {
+        await onStateChanged(id, fromPincode: true);
+      }
+      if (token != _pinLookup) return;
+      final districtHit = pincodeDistrictId(hit);
+      final districtName = pincodeDistrictName(hit);
+      if (districtHit == null || !districts.any((d) => d.id == districtHit)) {
+        if (districtName.isNotEmpty) {
+          flash('Error', 'pincode_district_unknown'.trParams({'district': districtName}));
+        }
+        return;
+      }
+      onDistrictChanged(districtHit, fromPincode: true);
     } catch (e, stack) {
       if (token != _pinLookup) return;
       AppLog.error('basics pincode lookup failed', error: e, stack: stack, tag: 'JOIN');
@@ -372,17 +502,21 @@ class _ProfileBasicsController extends GetxController {
 
   Future<void> submit() async {
     final fullName = name.text.trim();
-    final pin = pincode.text.trim();
     if (fullName.length < 2) {
       flash('Error', 'enter_name'.tr);
       return;
     }
-    if (!RegExp(r'^\d{6}$').hasMatch(pin)) {
-      flash('Error', 'pincode_invalid'.tr);
-      return;
-    }
     if (stateId.value == null) {
       flash('Error', 'select_state'.tr);
+      return;
+    }
+    if (districtId.value == null) {
+      flash('Error', 'select_district'.tr);
+      return;
+    }
+    final pin = pincode.text.trim();
+    if (pin.isNotEmpty && !RegExp(r'^\d{6}$').hasMatch(pin)) {
+      flash('Error', 'pincode_invalid'.tr);
       return;
     }
     if (!acceptedConsent.value) {
@@ -393,16 +527,20 @@ class _ProfileBasicsController extends GetxController {
     try {
       await session.captureLocation();
       final selected = states.where((s) => s.id == stateId.value).firstOrNull;
+      final selectedDistrict = districts.where((d) => d.id == districtId.value).firstOrNull;
       hive.draft.put('fullName', fullName);
-      hive.draft.put('pincode', pin);
       hive.draft.put('stateId', stateId.value);
       hive.draft.put('stateName', selected?.name);
+      hive.draft.put('districtId', districtId.value);
+      hive.draft.put('districtName', selectedDistrict?.name);
+      hive.draft.put('pincode', pin);
       hive.draft.put('acceptedConsent', true);
       hive.draft.put('pledgeUpdates', pledgeUpdates.value);
       await session.updateProfile({
         'fullName': fullName,
-        'pincode': pin,
         'stateId': stateId.value,
+        'districtId': districtId.value,
+        'pincode': pin,
         'acceptedRequiredConsent': true,
         'whatsappOptIn': pledgeUpdates.value,
         if (showReferral && referral.text.trim().isNotEmpty) 'referralCode': referral.text.trim(),

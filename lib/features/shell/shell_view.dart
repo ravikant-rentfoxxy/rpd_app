@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:rpd_app/features/join/join_chrome.dart';
 import '../../core/theme/app_colors.dart';
 import '../home/home_view.dart';
 import '../session/session_controller.dart';
 import '../work/work_view.dart';
-import '../leaderboard/leaderboard_view.dart';
+import '../community/community_view.dart';
 import '../more/more_view.dart';
 import '../../core/routes/app_routes.dart';
 
@@ -15,7 +14,7 @@ class ShellView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = Get.find<SessionController>();
-    final pages = const [HomeView(), WorkView(), SizedBox(), LeaderboardView(), MoreView()];
+    final pages = const [HomeView(), WorkView(), SizedBox(), CommunityView(), MoreView()];
     return Obx(
       () => Scaffold(
         body: pages[session.shellIndex.value],
@@ -37,7 +36,7 @@ class ShellView extends StatelessWidget {
                 _Nav(0, Icons.home_outlined, 'home'.tr, session),
                 _Nav(1, Icons.assignment_outlined, 'work'.tr, session),
                 const SizedBox(width: 56),
-                _Nav(3, Icons.emoji_events_outlined, 'leaderboard_nav'.trFallback('Rank'), session),
+                _Nav(3, Icons.groups_outlined, 'community'.tr, session),
                 _Nav(4, Icons.menu_rounded, 'more'.tr, session),
               ],
             ),
@@ -47,21 +46,28 @@ class ShellView extends StatelessWidget {
         floatingActionButton: DecoratedBox(
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            boxShadow: [BoxShadow(color: Color(0x73EF8120), blurRadius: 20, offset: Offset(0, 10))],
+            boxShadow: [BoxShadow(color: Color(0x5915633A), blurRadius: 20, offset: Offset(0, 10))],
           ),
           child: Material(
-            color: HomeColors.orange,
+            // The fill is the header gradient, so the one button that creates
+            // anything reads as the same green as the chrome above it. Material
+            // takes a colour but not a gradient, hence the Ink inside it.
+            color: Iro.green,
             shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () {
-                if (!session.guardCreatePost()) return;
-                Get.toNamed(Routes.createPost);
-              },
-              child: const SizedBox(
-                width: 54,
-                height: 54,
-                child: Icon(Icons.add_rounded, color: Colors.white, size: 24),
+            clipBehavior: Clip.antiAlias,
+            child: Ink(
+              decoration: const BoxDecoration(gradient: Iro.headerGradient, shape: BoxShape.circle),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () {
+                  if (!session.guardCreatePost()) return;
+                  Get.toNamed(Routes.createPost);
+                },
+                child: const SizedBox(
+                  width: 54,
+                  height: 54,
+                  child: Icon(Icons.add_rounded, color: Colors.white, size: 24),
+                ),
               ),
             ),
           ),

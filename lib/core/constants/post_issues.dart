@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 const fallbackPostIssues = [
@@ -269,6 +270,42 @@ String issueLabelOf(Map<String, dynamic> row) {
           if ('${row['subIssueCode'] ?? ''}'.trim().isNotEmpty) 'code': row['subIssueCode'],
         };
   if (localizedIssueName(sub).trim().isNotEmpty) return localizedIssueName(sub);
+  final nested = row['issue'] is Map ? Map<String, dynamic>.from(row['issue'] as Map) : row;
+  return localizedIssueName(nested);
+}
+
+/// The parent category a post sits under, whatever shape the row arrived in.
+String issueCodeOf(Map<String, dynamic> row) {
+  final nested = row['issue'];
+  final code = row['issueCode'] ?? (nested is Map ? nested['code'] : null) ?? row['code'];
+  return '${code ?? ''}'.toUpperCase();
+}
+
+/// A picture for the category, so a card reads before its label does. Keyed on
+/// the fourteen parent codes; anything unrecognised falls back to a flag.
+IconData issueIconOf(Map<String, dynamic> row) {
+  return switch (issueCodeOf(row)) {
+    'LAND' => Icons.terrain_rounded,
+    'WATER' => Icons.water_drop_outlined,
+    'POWER' => Icons.bolt_rounded,
+    'ROAD_SANITATION' => Icons.add_road_rounded,
+    'RATION' => Icons.inventory_2_outlined,
+    'PENSION' => Icons.savings_outlined,
+    'NREGA' => Icons.engineering_outlined,
+    'HOUSING' => Icons.home_work_outlined,
+    'HEALTH' => Icons.local_hospital_outlined,
+    'EDUCATION' => Icons.menu_book_outlined,
+    'FARMING' => Icons.agriculture_outlined,
+    'DOCUMENTS' => Icons.description_outlined,
+    'COMMON_PROPERTY' => Icons.park_outlined,
+    'GOVERNANCE' => Icons.gavel_rounded,
+    _ => Icons.outlined_flag_rounded,
+  };
+}
+
+/// The parent category's own name, localised. [issueLabelOf] prefers the
+/// sub-issue; the category chip on a card wants the family above it.
+String issueCategoryLabelOf(Map<String, dynamic> row) {
   final nested = row['issue'] is Map ? Map<String, dynamic>.from(row['issue'] as Map) : row;
   return localizedIssueName(nested);
 }

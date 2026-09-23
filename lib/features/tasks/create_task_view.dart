@@ -9,8 +9,7 @@ import '../session/session_controller.dart';
 import 'task_api.dart';
 import '../../core/widgets/flash.dart';
 
-const _cream = Color(0xFFFAF6F0);
-const _navy = Color(0xFF1B1340);
+const _cream = Iro.mint;
 
 class CreateTaskView extends StatefulWidget {
   const CreateTaskView({super.key});
@@ -63,22 +62,13 @@ class _CreateTaskViewState extends State<CreateTaskView> {
   Widget build(BuildContext context) {
     final session = Get.find<SessionController>();
     if (!session.guardVerifiedAccess() || !session.canCreateOrgEvents) {
-      return Scaffold(appBar: AppBar(title: Text('create_task'.trFallback('Create task'))), body: const SizedBox.shrink());
+      return Scaffold(appBar: OrganicAppBar(title: 'create_task'.trFallback('Create task')), body: const SizedBox.shrink());
     }
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
-        statusBarColor: _navy,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
-      ),
+      value: appBarOverlay,
       child: Scaffold(
         backgroundColor: _cream,
-        appBar: AppBar(
-          backgroundColor: _navy,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          title: Text('create_task'.trFallback('Create task')),
-        ),
+        appBar: OrganicAppBar(title: 'create_task'.trFallback('Create task')),
         bottomNavigationBar: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),

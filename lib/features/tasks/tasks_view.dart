@@ -6,12 +6,14 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/api_error.dart';
 import '../../core/utils/open_url.dart';
 import '../../core/widgets/empty_card.dart';
+import '../../core/widgets/iro_ui.dart';
 import '../../core/widgets/ui.dart';
 import '../events/event_api.dart';
 import '../events/event_qr.dart';
 import '../session/session_controller.dart';
 import 'task_api.dart';
 import '../../core/widgets/flash.dart';
+import '../../core/constants/endpoints.dart';
 
 class TasksView extends StatefulWidget {
   const TasksView({super.key, this.asTab = false});
@@ -136,18 +138,17 @@ class _TasksViewState extends State<TasksView> {
         Widget group(String title, List items, {bool bad = false, bool region = false}) {
           if (items.isEmpty) return const SizedBox.shrink();
           return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            // Stretch, not start: otherwise each card sizes to its own title
+            // and a list of them comes out ragged.
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 12, bottom: 6),
-                child: Text(
-                  title.toUpperCase(),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                    color: bad ? HomeColors.orange : HomeColors.muted,
-                    fontSize: 11,
-                  ),
+              IroSectionHeading(
+                title,
+                top: 10,
+                leading: Icon(
+                  bad ? Icons.error_outline_rounded : Icons.checklist_rounded,
+                  size: 17,
+                  color: bad ? Iro.alert : Iro.greenMid,
                 ),
               ),
               ...items.map((e) {
@@ -155,7 +156,7 @@ class _TasksViewState extends State<TasksView> {
                 final assigner = t['assigner'] is Map ? Map<String, dynamic>.from(t['assigner'] as Map) : <String, dynamic>{};
                 final sub = '${t['detail'] ?? t['description'] ?? assigner['fullName'] ?? t['assignerName'] ?? ''}'.trim();
                 if (region) {
-                  return _RegionTaskCard(
+                  return RegionTaskCard(
                     task: t,
                     sub: sub,
                     starting: starting.contains('${t['id'] ?? ''}'),
@@ -199,17 +200,10 @@ class _TasksViewState extends State<TasksView> {
                 )
               else ...[
                 if (events.isNotEmpty) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12, bottom: 6),
-                    child: Text(
-                      'joined_events'.trFallback('Joined events').toUpperCase(),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8,
-                        color: HomeColors.muted,
-                        fontSize: 11,
-                      ),
-                    ),
+                  IroSectionHeading(
+                    'joined_events'.trFallback('Events you joined'),
+                    top: 10,
+                    leading: const Icon(Icons.event_available_rounded, size: 17, color: Iro.greenMid),
                   ),
                   for (final event in events)
                     _JoinedEventCard(
@@ -232,8 +226,19 @@ class _TasksViewState extends State<TasksView> {
   }
 }
 
-class _RegionTaskCard extends StatelessWidget {
-  const _RegionTaskCard({required this.task, required this.sub, required this.starting, required this.onStart});
+/// A task handed to everyone in the region, rather than to one member.
+///
+/// Built on [IroCard] like the rest of the app. The old one was a plain white
+/// box whose column shrink-wrapped, so two tasks side by side came out
+/// different widths depending on how long their titles were.
+class RegionTaskCard extends StatelessWidget {
+  const RegionTaskCard({
+    super.key,
+    required this.task,
+    required this.sub,
+    required this.starting,
+    required this.onStart,
+  });
   final Map<String, dynamic> task;
   final String sub;
   final bool starting;
@@ -245,54 +250,121 @@ class _RegionTaskCard extends StatelessWidget {
     final canStart = task['canStart'] == true;
     final count = task['startedCount'];
     final from = '${task['assignerName'] ?? ''}'.trim();
-    return AppCard(
+    final title = '${task['title'] ?? ''}'.trim();
+
+    return IroCard(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(13, 13, 13, 13),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          CardTitle(task['title'] as String? ?? '', sub: sub.isEmpty ? null : sub),
-          if (from.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              '${'assigned_by'.trFallback('From')} $from',
-              style: const TextStyle(fontSize: 12, color: HomeColors.muted),
-            ),
-          ],
-          if (count is num) ...[
-            const SizedBox(height: 4),
-            Text(
-              'task_started_count'.trParams({'n': '$count'}),
-              style: const TextStyle(fontSize: 12, color: HomeColors.muted),
-            ),
-          ],
-          if (canStart || started) ...[
-            const SizedBox(height: 12),
-            if (started)
-              Text(
-                'task_in_progress'.trFallback('In progress'),
-                style: const TextStyle(fontWeight: FontWeight.w800, color: HomeColors.orange),
-              )
-            else
-              SizedBox(
-                height: 42,
-                child: FilledButton(
-                  onPressed: starting ? null : onStart,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: HomeColors.orange,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                  ),
-                  child: starting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : Text('start_task'.trFallback('Start'), style: const TextStyle(fontWeight: FontWeight.w800)),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // A square mark so a list of tasks scans down the left edge
+              // rather than as a wall of text.
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: started ? Iro.wash : Iro.mint,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(
+                  started ? Icons.timelapse_rounded : Icons.assignment_outlined,
+                  size: 19,
+                  color: started ? Iro.greenMid : Iro.green,
                 ),
               ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: iroDisplay(size: 15)),
+                    if (sub.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        sub,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: iroLabel(size: 11.5, color: Iro.muted, weight: FontWeight.w500).copyWith(height: 1.45),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (started) ...[
+                const SizedBox(width: 8),
+                IroChip('task_in_progress'.trFallback('In progress'), dense: true, size: 9.5, dot: true),
+              ],
+            ],
+          ),
+          if (from.isNotEmpty || count is num) ...[
+            const SizedBox(height: 11),
+            // One line each rather than side by side. A long name next to
+            // "Nobody started yet" does not fit on a narrow phone, and the
+            // Hindi and Bhojpuri both run longer than the English — stacking
+            // them means neither can ever overflow, and each ellipsises.
+            if (from.isNotEmpty)
+              _TaskMeta(icon: Icons.person_outline_rounded, label: from, strong: true),
+            // Nobody has picked it up yet, which is worth saying plainly
+            // rather than as a bare "0 started".
+            if (count is num) ...[
+              if (from.isNotEmpty) const SizedBox(height: 5),
+              _TaskMeta(
+                icon: Icons.groups_outlined,
+                label: count == 0
+                    ? 'task_started_none'.trFallback('Nobody started yet')
+                    : 'task_started_count'.trParams({'n': '$count'}),
+              ),
+            ],
+          ],
+          if (canStart && !started) ...[
+            const SizedBox(height: 12),
+            IroActionButton(
+              label: 'start_task'.trFallback('Start'),
+              icon: Icons.play_arrow_rounded,
+              height: 42,
+              enabled: !starting,
+              onTap: starting ? null : onStart,
+            ),
           ],
         ],
       ),
+    );
+  }
+}
+
+/// One fact about a task: an icon and a line of text that gives way rather than
+/// running off the card.
+class _TaskMeta extends StatelessWidget {
+  const _TaskMeta({required this.icon, required this.label, this.strong = false});
+  final IconData icon;
+  final String label;
+  final bool strong;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: Iro.muted),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: iroLabel(
+              size: 11,
+              color: strong ? Iro.ink2 : Iro.muted,
+              weight: strong ? FontWeight.w700 : FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -313,7 +385,7 @@ class _JoinedEventCard extends StatelessWidget {
     final lat = event['latitude'];
     final lng = event['longitude'];
     final query = lat is num && lng is num ? '$lat,$lng' : Uri.encodeComponent('${event['venue'] ?? ''}');
-    openExternalUrl('https://www.google.com/maps/search/?api=1&query=$query', preferExternal: true);
+    openExternalUrl(ExternalLinks.mapsSearch(query), preferExternal: true);
   }
 
   @override

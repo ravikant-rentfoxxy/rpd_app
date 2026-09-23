@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/ui.dart';
 import '../../core/widgets/empty_card.dart';
 import '../../data/models/home_feed.dart';
 import '../session/session_controller.dart';
@@ -17,17 +17,7 @@ class HomeFeedListView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: HomeColors.paper,
-      appBar: AppBar(
-        backgroundColor: HomeColors.navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: HomeColors.navy,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-        ),
-      ),
+      appBar: OrganicAppBar(title: title),
       body: ListView.separated(
         padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
         itemCount: items.length,
@@ -64,17 +54,7 @@ class _UpcomingEventsViewState extends State<UpcomingEventsView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: HomeColors.paper,
-      appBar: AppBar(
-        backgroundColor: HomeColors.navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text('upcoming_events'.tr, style: const TextStyle(fontWeight: FontWeight.w500)),
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: HomeColors.navy,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-        ),
-      ),
+      appBar: OrganicAppBar(title: 'upcoming_events'.tr),
       body: Obx(() {
         final session = Get.find<SessionController>();
         session.home.value;

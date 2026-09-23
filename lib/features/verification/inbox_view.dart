@@ -24,7 +24,7 @@ class VerificationInboxView extends StatelessWidget {
       });
     }
     return Scaffold(
-      appBar: AppBar(title: Text('to_check'.tr)),
+      appBar: OrganicAppBar(title: 'to_check'.tr),
       body: Obx(() {
         if (error.value != null) {
           return Center(

@@ -71,6 +71,9 @@ class MembersView extends StatelessWidget {
             const SizedBox(height: 8),
             PrimaryButton(
               'add_member'.tr,
+              // The same fill as the create button in the tab bar — this is the
+              // one thing this screen exists to do.
+              gradient: Iro.headerGradient,
               onTap: () {
                 if (!Get.find<SessionController>().guardMemberActions()) return;
                 Get.toNamed(Routes.addMember);
@@ -127,12 +130,12 @@ class AddMemberView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!Get.find<SessionController>().guardMemberActions()) {
-      return Scaffold(appBar: AppBar(title: Text('add_member'.tr)), body: const SizedBox.shrink());
+      return Scaffold(appBar: OrganicAppBar(title: 'add_member'.tr), body: const SizedBox.shrink());
     }
     final mobile = TextEditingController();
     final exists = Rxn<Map<String, dynamic>>();
     return Scaffold(
-      appBar: AppBar(title: Text('add_member'.tr)),
+      appBar: OrganicAppBar(title: 'add_member'.tr),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -194,6 +197,11 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
   final states = <SearchOption>[].obs;
   final stateId = RxnString();
   final loadingStates = false.obs;
+  /// Where the recruit lives. Filled in from the pincode, and changeable —
+  /// the postal district does not always match one the party has on file.
+  final districts = <SearchOption>[].obs;
+  final districtId = RxnString();
+  final loadingDistricts = false.obs;
   final lookingUpPin = false.obs;
   var _pinLookup = 0;
   final name = TextEditingController();
@@ -247,6 +255,35 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
     }
   }
 
+  Future<void> _loadDistricts(String? forStateId) async {
+    districts.clear();
+    districtId.value = null;
+    if (forStateId == null || forStateId.isEmpty) return;
+    loadingDistricts.value = true;
+    try {
+      final res = await Get.find<ApiClient>().get('/geo/districts', query: {'stateId': forStateId});
+      final data = res['data'] is Map ? Map<String, dynamic>.from(res['data'] as Map) : res;
+      districts.assignAll(
+        ((data['districts'] as List?) ?? [])
+            .whereType<Map>()
+            .map((e) => SearchOption(id: '${e['id']}', name: '${e['name'] ?? ''}'))
+            .where((e) => e.id.isNotEmpty && e.name.isNotEmpty)
+            .toList(),
+      );
+    } catch (e, stack) {
+      AppLog.error('Recruit loadDistricts failed', error: e, stack: stack, tag: 'MEMBERS');
+    } finally {
+      loadingDistricts.value = false;
+    }
+  }
+
+  /// Picking a state clears whatever district was under the old one.
+  Future<void> onStateChanged(String? id) async {
+    stateId.value = id;
+    tick();
+    await _loadDistricts(id);
+  }
+
   Future<void> _lookupStateFromPincode(String value) async {
     final pin = value.trim();
     final token = ++_pinLookup;
@@ -259,16 +296,28 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
       if (token != _pinLookup || !mounted) return;
       final id = pincodeStateId(hit);
       final name = pincodeStateName(hit);
+      // A pincode the postal service does not recognise is no longer an error:
+      // it is optional, and the recruiter has already named the area by hand.
       if (id == null) {
-        flash('Error', name.isEmpty ? 'pincode_invalid'.tr : 'pincode_state_unknown'.trParams({'state': name}));
+        AppLog.info('pincode $pin resolved no state${name.isEmpty ? '' : ' ($name)'}', tag: 'MEMBERS');
         return;
       }
       if (!states.any((s) => s.id == id) && name.isNotEmpty) {
         states.add(SearchOption(id: id, name: name));
       }
-      if (states.any((s) => s.id == id)) {
+      // Only ever a suggestion: a recruiter who has already chosen keeps it.
+      if (states.any((s) => s.id == id) && stateId.value == null) {
         stateId.value = id;
         tick();
+        await _loadDistricts(id);
+        if (token != _pinLookup || !mounted) return;
+        // The postal lookup names a district too. Pick it when the party has
+        // that district on file; otherwise leave the field for them to set.
+        final district = pincodeDistrictId(hit);
+        if (district != null && districtId.value == null && districts.any((d) => d.id == district)) {
+          districtId.value = district;
+          tick();
+        }
       }
     } catch (e, stack) {
       if (token != _pinLookup) return;
@@ -298,12 +347,17 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
       flash('Error', 'complete_steps'.tr);
       return;
     }
-    if (!RegExp(r'^\d{6}$').hasMatch(pin)) {
+    // Optional, but a typo in one is still worth catching.
+    if (pin.isNotEmpty && !RegExp(r'^\d{6}$').hasMatch(pin)) {
       flash('Error', 'pincode_invalid'.tr);
       return;
     }
     if (stateId.value == null) {
       flash('Error', 'select_state'.tr);
+      return;
+    }
+    if (districtId.value == null) {
+      flash('Error', 'select_district'.trFallback('Select district'));
       return;
     }
     submitting.value = true;
@@ -312,8 +366,9 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
       final payload = await session.recruitMember({
         'mobile': mobile,
         'fullName': fullName,
-        'pincode': pin,
+        if (pin.isNotEmpty) 'pincode': pin,
         'stateId': stateId.value,
+        if (districtId.value != null) 'districtId': districtId.value,
         if (boothId != null) 'boothId': boothId,
         'locale': switch (hive.locale) {
           'en' => 'EN',
@@ -343,7 +398,7 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('add_member'.tr)),
+      appBar: OrganicAppBar(title: 'add_member'.tr),
       body: ListView(
         padding: const EdgeInsets.all(16),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -358,8 +413,40 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
             verifyStyle: true,
             onChanged: (_) => tick(),
           ),
+          Obx(
+            () => AppSearchSelect(
+              label: '${'state'.tr} *',
+              hint: 'select_state'.tr,
+              searchHint: 'search_state'.tr,
+              emptyHint: 'no_matches'.tr,
+              icon: Icons.map_outlined,
+              value: states.any((s) => s.id == stateId.value) ? stateId.value : null,
+              options: states.toList(),
+              loading: loadingStates.value || lookingUpPin.value,
+              verifyStyle: true,
+              onChanged: onStateChanged,
+            ),
+          ),
+          Obx(
+            () => AppSearchSelect(
+              label: '${'district'.tr} *',
+              hint: 'select_district'.trFallback('Select district'),
+              searchHint: 'search_district'.trFallback('Search district'),
+              emptyHint: 'no_matches'.tr,
+              icon: Icons.location_city_outlined,
+              value: districts.any((d) => d.id == districtId.value) ? districtId.value : null,
+              options: districts.toList(),
+              loading: loadingDistricts.value || lookingUpPin.value,
+              enabled: stateId.value != null,
+              verifyStyle: true,
+              onChanged: (id) {
+                districtId.value = id;
+                tick();
+              },
+            ),
+          ),
           AppField(
-            label: '${'pincode'.tr} *',
+            label: 'pincode'.tr,
             controller: pincode,
             hint: 'pincode_hint'.tr,
             icon: Icons.pin_outlined,
@@ -371,24 +458,6 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
               tick();
               _lookupStateFromPincode(value);
             },
-          ),
-          Obx(
-            () => AppSearchSelect(
-              label: '${'state'.tr} *',
-              hint: 'select_state'.tr,
-              searchHint: 'search_state'.tr,
-              emptyHint: 'no_matches'.tr,
-              icon: Icons.map_outlined,
-              value: states.any((s) => s.id == stateId.value) ? stateId.value : null,
-              options: states.toList(),
-              loading: loadingStates.value || lookingUpPin.value,
-              enabled: false,
-              verifyStyle: true,
-              onChanged: (id) {
-                stateId.value = id;
-                tick();
-              },
-            ),
           ),
           const SizedBox(height: 4),
           VerifyInfoBox(
@@ -426,11 +495,13 @@ class _RecruitConsentViewState extends State<RecruitConsentView> {
           Obx(() {
             formTick.value;
             submitting.value;
+            final pin = pincode.text.trim();
             final canSubmit = agreed.value &&
                 otp.text.length == 6 &&
                 name.text.trim().length >= 2 &&
-                RegExp(r'^\d{6}$').hasMatch(pincode.text.trim()) &&
+                (pin.isEmpty || RegExp(r'^\d{6}$').hasMatch(pin)) &&
                 stateId.value != null &&
+                districtId.value != null &&
                 !submitting.value;
             return PrimaryButton(
               submitting.value ? '…' : 'submit_app'.tr,

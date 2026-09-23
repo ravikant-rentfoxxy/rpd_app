@@ -95,6 +95,9 @@ Future<Duration?> videoFileDuration(String path) async {
   VideoPlayerController? controller;
   try {
     controller = await openVideoController(path);
+    // Only the HLS branch of openVideoController initializes; a file or network
+    // controller still reads Duration.zero until it does.
+    await initializeVideo(controller);
     return controller.value.duration;
   } catch (_) {
     return null;
@@ -318,9 +321,9 @@ class _ComposerAudioCardState extends State<ComposerAudioCard> {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF3EEE6),
+        color: Iro.wash2,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE4DCD0)),
+        border: Border.all(color: Iro.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -355,7 +358,7 @@ class _ComposerAudioCardState extends State<ComposerAudioCard> {
                               duration: const Duration(milliseconds: 80),
                               height: 8 + bars[i] * 28,
                               decoration: BoxDecoration(
-                                color: i / bars.length <= progress ? HomeColors.orange : const Color(0xFFC9C2B6),
+                                color: i / bars.length <= progress ? HomeColors.orange : Iro.muted2,
                                 borderRadius: BorderRadius.circular(2),
                               ),
                             ),
@@ -695,7 +698,7 @@ class _AudioRecordPanelState extends State<AudioRecordPanel> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE4DCD0)),
+        border: Border.all(color: Iro.line),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -785,4 +788,57 @@ String _formatDuration(Duration value) {
   final minutes = value.inMinutes.remainder(60).toString().padLeft(2, '0');
   final seconds = value.inSeconds.remainder(60).toString().padLeft(2, '0');
   return '$minutes:$seconds';
+}
+
+/// What a post shows where its artwork would be when it has none: an audio clip
+/// carries no image of its own, and a post with only a description carries no
+/// media at all. A flat empty field reads as a broken image, so stand in with
+/// the kind of thing the post actually holds.
+enum PostPlaceholderKind { audio, video, image, text, article }
+
+class PostMediaPlaceholder extends StatelessWidget {
+  const PostMediaPlaceholder({super.key, required this.kind, this.height, this.iconSize = 34});
+
+  final PostPlaceholderKind kind;
+  final double? height;
+  final double iconSize;
+
+  /// Reads a post's `mediaType`. Pass [hasMedia] false for a post that carries
+  /// nothing but its description.
+  static PostPlaceholderKind kindFor(Object? mediaType, {bool hasMedia = true}) {
+    if (!hasMedia) return PostPlaceholderKind.text;
+    return switch ('${mediaType ?? ''}'.toLowerCase()) {
+      'audio' => PostPlaceholderKind.audio,
+      'video' => PostPlaceholderKind.video,
+      '' || 'text' => PostPlaceholderKind.text,
+      _ => PostPlaceholderKind.image,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = switch (kind) {
+      PostPlaceholderKind.audio => Icons.mic_none_rounded,
+      PostPlaceholderKind.video => Icons.videocam_rounded,
+      PostPlaceholderKind.image => Icons.image_outlined,
+      PostPlaceholderKind.text => Icons.chat_bubble_outline_rounded,
+      PostPlaceholderKind.article => Icons.description_outlined,
+    };
+    return SizedBox(
+      height: height,
+      width: double.infinity,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [HomeColors.peach2, HomeColors.peach],
+          ),
+        ),
+        child: Center(
+          child: Icon(icon, size: iconSize, color: HomeColors.orange),
+        ),
+      ),
+    );
+  }
 }

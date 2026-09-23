@@ -45,8 +45,9 @@ class _LeaderboardViewState extends State<LeaderboardView> {
       child: Scaffold(
         backgroundColor: HomeColors.paper,
         appBar: OrganicAppBar(
+          // Every way in here is a push — from More, from Community, and from
+          // the rank tag on Home — so there is always somewhere to go back to.
           title: 'leaderboard'.trFallback('Leaderboard'),
-          automaticallyImplyLeading: false,
         ),
         body: loading && data.value == null
             ? const Center(child: CircularProgressIndicator(color: HomeColors.orange))

@@ -156,6 +156,22 @@ Future<Map<String, dynamic>> resolveRegionPost(Map<String, dynamic> post, String
   return Map<String, dynamic>.from((res['data'] as Map)['post'] as Map);
 }
 
+/// Record that this member opened the post and get back the fresh total. One
+/// row per member, so the number is how many people have seen it.
+Future<int> markPostViewed(Map<String, dynamic> post) async {
+  final res = await Get.find<ApiClient>().post('/posts/${_postRef(post)}/view');
+  final data = (res['data'] as Map?) ?? const {};
+  return (data['views'] as num?)?.round() ?? 0;
+}
+
+/// Like or dislike an issue post. Sending the side already held clears it, so
+/// the caller passes what the member tapped, not what they should end up with.
+/// `null` takes the vote back outright.
+Future<Map<String, dynamic>> voteOnRegionPost(Map<String, dynamic> post, String? vote) async {
+  final res = await Get.find<ApiClient>().post('/posts/${_postRef(post)}/vote', data: {'vote': vote});
+  return Map<String, dynamic>.from((res['data'] as Map)['post'] as Map);
+}
+
 Future<String> summariseRegionPost(Map<String, dynamic> post) async {
   final res = await Get.find<ApiClient>().post('/posts/${_postRef(post)}/summary');
   return '${((res['data'] as Map?)?['summary'] ?? '')}'.trim();

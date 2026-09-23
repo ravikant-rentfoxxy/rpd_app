@@ -20,18 +20,19 @@ import '../session/session_controller.dart';
 import 'event_api.dart';
 import 'event_datetime_sheet.dart';
 import '../../core/widgets/flash.dart';
+import '../../core/constants/endpoints.dart';
 
-const _cream = Color(0xFFFAF6F0);
+const _cream = Iro.mint;
 const _navy = Color(0xFF1B1340);
 const _navyMute = Color(0xFFB3A9D6);
-const _section = Color(0xFFA6957A);
-const _cardLine = Color(0xFFEFE4D6);
-const _rowLine = Color(0xFFF3EBDE);
+const _section = Iro.muted;
+const _cardLine = Iro.wash2;
+const _rowLine = Iro.wash2;
 const _peach = Color(0xFFFDEBDA);
 const _peachDash = Color(0xFFF0AC6B);
 const _orange = Color(0xFFC2600F);
-const _muted = Color(0xFF8A7F6E);
-const _hint = Color(0xFFC6BBA8);
+const _muted = Iro.muted;
+const _hint = Iro.muted2;
 const _publish = Color(0xFFF5821F);
 
 class CreateEventView extends StatefulWidget {
@@ -288,7 +289,7 @@ class _CreateEventViewState extends State<CreateEventView> {
     final lng = verifiedLng;
     if (lat == null || lng == null) return;
     openExternalUrl(
-      'https://www.google.com/maps/search/?api=1&query=$lat,$lng',
+      ExternalLinks.mapsSearch('$lat,$lng'),
       preferExternal: true,
     );
   }
@@ -361,7 +362,7 @@ class _CreateEventViewState extends State<CreateEventView> {
   Widget build(BuildContext context) {
     final session = Get.find<SessionController>();
     if (!session.guardVerifiedAccess() || !session.canCreateOrgEvents) {
-      return Scaffold(appBar: AppBar(title: Text(typeLabel)), body: const SizedBox.shrink());
+      return Scaffold(appBar: OrganicAppBar(title: typeLabel), body: const SizedBox.shrink());
     }
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -702,7 +703,7 @@ class _PhotoCard extends StatelessWidget {
                   Row(
                     children: [
                       _PhotoAction(icon: Icons.swap_horiz_rounded, label: 'replace'.tr, onTap: onReplace),
-                      Container(width: 1, height: 16, color: const Color(0xFFD8D0C4)),
+                      Container(width: 1, height: 16, color: Iro.line),
                       _PhotoAction(icon: Icons.delete_outline_rounded, label: 'remove'.tr, color: _orange, onTap: onRemove),
                     ],
                   ),

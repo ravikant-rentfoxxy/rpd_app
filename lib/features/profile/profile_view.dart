@@ -67,7 +67,7 @@ class _ProfileViewState extends State<ProfileView> {
               onPressed: showMembershipCardOverlay,
               child: Text(
                 'card'.trFallback('Card'),
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
+                style: const TextStyle(color: Iro.green, fontWeight: FontWeight.w700, fontSize: 15),
               ),
             ),
           ),
@@ -76,28 +76,31 @@ class _ProfileViewState extends State<ProfileView> {
       body: Obx(() {
         session.profile.value;
         return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           children: [
             _ProfileAvatar(controller: c),
-            const SizedBox(height: 22),
+            const SizedBox(height: 14),
             AppField(
               label: 'card_member_id'.trFallback('Member ID'),
               controller: c.memberId,
               icon: Icons.badge_outlined,
               readOnly: true,
+              verifyStyle: true,
             ),
             AppField(
               label: 'mobile_number'.tr,
               controller: c.mobile,
               icon: Icons.phone_outlined,
               readOnly: true,
+              verifyStyle: true,
             ),
             AppField(
               label: 'full_name'.tr,
               controller: c.name,
               hint: 'enter_name'.tr,
               icon: Icons.person_outline_rounded,
+              verifyStyle: true,
             ),
             AppField(
               label: 'voter_id'.trFallback('Voter ID card number'),
@@ -115,6 +118,7 @@ class _ProfileViewState extends State<ProfileView> {
                   );
                 }),
               ],
+              verifyStyle: true,
             ),
             AppField(
               label: '${'dob'.tr} *',
@@ -135,6 +139,7 @@ class _ProfileViewState extends State<ProfileView> {
                 if (picked == null) return;
                 c.dob.text = dateToDisplay(picked);
               },
+              verifyStyle: true,
             ),
             Obx(
               () => AppSelect<String>(
@@ -147,6 +152,7 @@ class _ProfileViewState extends State<ProfileView> {
                   DropdownMenuItem(value: 'OTHER', child: Text('other'.tr)),
                 ],
                 onChanged: (value) => c.gender.value = value ?? 'MALE',
+                verifyStyle: true,
               ),
             ),
             AppField(
@@ -155,28 +161,46 @@ class _ProfileViewState extends State<ProfileView> {
               hint: 'address_hint'.tr,
               icon: Icons.home_outlined,
               maxLines: 2,
+              verifyStyle: true,
             ),
-            AppField(
-              label: 'pincode'.tr,
-              controller: c.pincode,
-              hint: 'pincode_hint'.tr,
-              icon: Icons.credit_card_outlined,
-              keyboard: TextInputType.number,
-              digitsOnly: true,
-              maxLength: 6,
-              onChanged: c.onPincodeChanged,
-            ),
-            Obx(
-              () => AppSelect<String>(
-                label: '${'state'.tr} *',
-                hint: 'select_state'.tr,
-                icon: Icons.map_outlined,
-                value: c.states.any((s) => s.id == c.stateId.value) ? c.stateId.value : null,
-                items: c.states.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))).toList(),
-                loading: c.loadingStates.value || c.lookingUpPin.value,
-                enabled: false,
-                onChanged: c.onStateChanged,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: AppField(
+                    label: 'pincode'.tr,
+                    controller: c.pincode,
+                    hint: 'pincode_hint'.tr,
+                    icon: Icons.credit_card_outlined,
+                    keyboard: TextInputType.number,
+                    digitsOnly: true,
+                    maxLength: 6,
+                    onChanged: c.onPincodeChanged,
+                    verifyStyle: true,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 6,
+                  // A searchable sheet, not a dropdown: a dropdown draws its menu
+                  // at the button's width and clipped the longer state names.
+                  child: Obx(
+                    () => AppSearchSelect(
+                      label: '${'state'.tr} *',
+                      hint: 'select_state'.tr,
+                      searchHint: 'search_state'.tr,
+                      emptyHint: 'no_matches'.tr,
+                      icon: Icons.map_outlined,
+                      value: c.states.any((s) => s.id == c.stateId.value) ? c.stateId.value : null,
+                      options: c.states.map((s) => SearchOption(id: s.id, name: s.name)).toList(),
+                      loading: c.loadingStates.value || c.lookingUpPin.value,
+                      onChanged: (id) => c.onStateChanged(id),
+                      verifyStyle: true,
+                    ),
+                  ),
+                ),
+              ],
             ),
             Obx(
               () => AppSearchSelect(
@@ -189,7 +213,8 @@ class _ProfileViewState extends State<ProfileView> {
                 options: c.districts.map((d) => SearchOption(id: d.id, name: d.name)).toList(),
                 enabled: c.stateId.value != null,
                 loading: c.loadingDistricts.value,
-                onChanged: c.onDistrictChanged,
+                onChanged: (id) => c.onDistrictChanged(id),
+                verifyStyle: true,
               ),
             ),
             Obx(
@@ -204,6 +229,7 @@ class _ProfileViewState extends State<ProfileView> {
                 enabled: c.districtId.value != null,
                 loading: c.loadingAssemblies.value,
                 onChanged: c.onAssemblyChanged,
+                verifyStyle: true,
               ),
             ),
           ],
@@ -322,7 +348,34 @@ class _ProfileController extends GetxController {
     boothId.value = _id(member['boothId']);
     _seedGeoFromMember();
     session.captureLocation();
+    loadStates();
     if (stateId.value != null) loadDistricts(silent: true);
+  }
+
+  /// The full list, so the state field is a real choice rather than a readout.
+  /// [_seedGeoFromMember] puts the member's own state in first so the field is
+  /// filled while this is in flight.
+  Future<void> loadStates() async {
+    loadingStates.value = true;
+    try {
+      final res = await api.get('/geo/states');
+      final loaded = _options(res, 'states');
+      if (loaded.isEmpty) return;
+      _GeoOption? seeded;
+      for (final option in states) {
+        if (option.id == stateId.value) seeded = option;
+      }
+      states.assignAll(loaded);
+      // Never drop the member's own state on the floor: blanking a value they
+      // did not touch would quietly wipe their district and assembly with it.
+      if (seeded != null && !states.any((s) => s.id == seeded!.id)) {
+        states.add(seeded);
+      }
+    } catch (e, stack) {
+      AppLog.error('profile loadStates failed', error: e, stack: stack, tag: 'PROFILE');
+    } finally {
+      loadingStates.value = false;
+    }
   }
 
   void _seedGeoFromMember() {
@@ -426,8 +479,21 @@ class _ProfileController extends GetxController {
     }
   }
 
-  Future<void> onStateChanged(String? id) async {
+  /// Drops the pincode, because it named the region being replaced. Any lookup
+  /// still in flight is cancelled too, or its reply would refill all of this.
+  void _dropPincode() {
+    if (pincode.text.isEmpty) return;
+    pincode.clear();
+    _pinLookup++;
+    lookingUpPin.value = false;
+  }
+
+  /// [fromPincode] marks the lookup setting this itself; a hand-picked state
+  /// contradicts whatever pincode is on screen.
+  Future<void> onStateChanged(String? id, {bool fromPincode = false}) async {
+    if (stateId.value == id) return;
     stateId.value = id;
+    if (!fromPincode) _dropPincode();
     districtId.value = null;
     assemblyId.value = null;
     boothId.value = null;
@@ -462,8 +528,10 @@ class _ProfileController extends GetxController {
         states.add(_GeoOption(id: id, name: name));
       }
       if (states.any((s) => s.id == id) && stateId.value != id) {
-        await onStateChanged(id);
+        await onStateChanged(id, fromPincode: true);
       }
+      if (token != _pinLookup) return;
+      await _applyPincodeDistrict(hit, announce: announce);
     } catch (e, stack) {
       if (token != _pinLookup) return;
       AppLog.error('profile pincode lookup failed', error: e, stack: stack, tag: 'PROFILE');
@@ -473,8 +541,47 @@ class _ProfileController extends GetxController {
     }
   }
 
-  Future<void> onDistrictChanged(String? id) async {
+  /// The pincode names a district too. Select it, then settle the assembly:
+  /// a single candidate is chosen outright, several opens the picker.
+  Future<void> _applyPincodeDistrict(Map<String, dynamic> hit, {bool announce = true}) async {
+    final id = pincodeDistrictId(hit);
+    final name = pincodeDistrictName(hit);
+    if (id == null || !districts.any((d) => d.id == id)) {
+      if (announce && name.isNotEmpty) {
+        flash('Error', 'pincode_district_unknown'.trParams({'district': name}));
+      }
+      return;
+    }
+    await onDistrictChanged(id, fromPincode: true);
+    await _settleAssembly(announce: announce);
+  }
+
+  Future<void> _settleAssembly({bool announce = true}) async {
+    if (assemblyId.value != null) return;
+    if (assemblies.isEmpty) return;
+    if (assemblies.length == 1) {
+      await onAssemblyChanged(assemblies.first.id);
+      return;
+    }
+    if (!announce) return;
+    final context = Get.context;
+    if (context == null || !context.mounted) return;
+    final picked = await showSearchSelectSheet(
+      context: context,
+      title: '${'assembly'.tr} *',
+      searchHint: 'search_assembly'.trFallback('Search assembly'),
+      emptyHint: 'no_matches'.trFallback('No matches'),
+      options: assemblies.map((a) => SearchOption(id: a.id, name: a.name)).toList(),
+      selectedId: assemblyId.value,
+    );
+    if (picked != null) await onAssemblyChanged(picked);
+  }
+
+  /// A pincode names one district, so choosing another by hand voids it.
+  Future<void> onDistrictChanged(String? id, {bool fromPincode = false}) async {
+    if (districtId.value == id) return;
     districtId.value = id;
+    if (!fromPincode) _dropPincode();
     assemblyId.value = null;
     boothId.value = null;
     assemblies.clear();
@@ -502,7 +609,9 @@ class _ProfileController extends GetxController {
       return;
     }
     final pin = pincode.text.trim();
-    if (!RegExp(r'^\d{6}$').hasMatch(pin)) {
+    // Optional when editing: leaving it blank keeps the state, district and
+    // assembly already on the profile. Only a half-typed pincode is refused.
+    if (pin.isNotEmpty && !RegExp(r'^\d{6}$').hasMatch(pin)) {
       flash('Error', 'pincode_invalid'.tr);
       return;
     }

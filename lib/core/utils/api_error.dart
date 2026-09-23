@@ -10,14 +10,14 @@ String apiErrorMessage(Object error) {
       if (message is String && message.isNotEmpty) return message;
     }
     final fromError = error.error?.toString();
-    if (fromError != null && fromError.contains('API_BASE_URL')) return fromError;
-    if (error.message != null && error.message!.contains('API_BASE_URL')) {
+    if (fromError != null && fromError.contains('No API base URL')) return fromError;
+    if (error.message != null && error.message!.contains('No API base URL')) {
       return error.message!;
     }
     if (error.type == DioExceptionType.connectionError ||
         error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.unknown) {
-      return 'Could not reach ${base ?? 'the API'}. Set API_BASE_URL in assets/env and restart the app.';
+      return 'Could not reach ${base ?? 'the API'}. Check the API settings screen, or rebuild for another environment.';
     }
     return error.message ?? 'Request failed';
   }

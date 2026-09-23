@@ -17,7 +17,7 @@ class LanguageDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = Get.find<SessionController>();
-    if (pill) return _Pill(session: session);
+    if (pill) return _Pill(session: session, onDark: onDark);
     final fg = onDark ? Colors.white : AppColors.ink2;
     return Container(
       padding: const EdgeInsets.only(left: 8, right: 4),
@@ -74,8 +74,11 @@ class LanguageDropdown extends StatelessWidget {
 }
 
 class _Pill extends StatelessWidget {
-  const _Pill({required this.session});
+  const _Pill({required this.session, this.onDark = true});
   final SessionController session;
+
+  /// The pill sits on the navy hero by default; the white app bar needs ink.
+  final bool onDark;
 
   @override
   Widget build(BuildContext context) {
@@ -98,14 +101,25 @@ class _Pill extends StatelessWidget {
             ),
         ],
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            border: Border.all(color: HomeColors.navyLine),
+            border: Border.all(color: onDark ? HomeColors.navyLine : HomeColors.border),
             borderRadius: BorderRadius.circular(999),
           ),
-          child: Text(
-            current.$2,
-            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.language_rounded, size: 13, color: onDark ? Colors.white : HomeColors.muted),
+              const SizedBox(width: 4),
+              Text(
+                current.$2,
+                style: TextStyle(
+                  color: onDark ? Colors.white : HomeColors.ink,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ),
         ),
       );

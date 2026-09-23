@@ -10,50 +10,50 @@ class HomeShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: HomeColors.paper,
+      color: HomeColors.surface,
       child: CustomScrollView(
         physics: const NeverScrollableScrollPhysics(),
         slivers: [
           SliverToBoxAdapter(
             child: Container(
               decoration: const BoxDecoration(
-                color: HomeColors.navy,
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(36)),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [HomeColors.navyMid, HomeColors.navyLine],
+                ),
+                // border: Border(bottom: BorderSide(color: HomeColors.navyDeep)),
               ),
-              padding: EdgeInsets.fromLTRB(20, topInset + 12, 20, 30),
+              padding: EdgeInsets.fromLTRB(12, topInset + 10, 12, 12),
               child: Shimmer.fromColors(
-                baseColor: HomeColors.navyMid,
-                highlightColor: const Color(0xFF3D4F8C),
-                child: Column(
+                baseColor: HomeColors.navyLine,
+                highlightColor: HomeColors.navyMuted,
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        _bone(width: 44, height: 44, radius: 22),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _bone(width: 72, height: 10, radius: 6),
-                              const SizedBox(height: 8),
-                              _bone(width: 140, height: 16, radius: 8),
-                            ],
-                          ),
-                        ),
-                        _bone(width: 36, height: 36, radius: 12),
-                        const SizedBox(width: 10),
-                        _bone(width: 36, height: 36, radius: 12),
-                      ],
+                    _bone(width: 36, height: 36, radius: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _bone(width: 120, height: 14, radius: 7),
+                          const SizedBox(height: 6),
+                          _bone(width: 90, height: 10, radius: 5),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 22),
-                    _bone(width: double.infinity, height: 72, radius: 20),
+                    _bone(width: 52, height: 26, radius: 13),
+                    const SizedBox(width: 6),
+                    _bone(width: 34, height: 34, radius: 17),
+                    const SizedBox(width: 6),
+                    _bone(width: 36, height: 36, radius: 18),
                   ],
                 ),
               ),
             ),
           ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 36),
+            padding: const EdgeInsets.fromLTRB(12, 14, 12, 36),
             sliver: SliverToBoxAdapter(
               child: Shimmer.fromColors(
                 baseColor: const Color(0xFFE4E0D8),

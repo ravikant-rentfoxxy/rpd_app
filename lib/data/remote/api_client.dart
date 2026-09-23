@@ -26,13 +26,13 @@ class ApiClient extends GetxService {
         onRequest: (options, handler) {
           final origin = _origin();
           if (origin.isEmpty) {
-            AppLog.error('API_BASE_URL missing before ${options.method} ${options.path}', tag: 'API');
+            AppLog.error('No API base URL before ${options.method} ${options.path}', tag: 'API');
             return handler.reject(
               DioException(
                 requestOptions: options,
                 type: DioExceptionType.unknown,
-                error: 'API_BASE_URL is missing. Set it in assets/env.',
-                message: 'API_BASE_URL is missing. Set it in assets/env.',
+                error: 'No API base URL. Build with --dart-define=APP_ENV=local|dev|prod.',
+                message: 'No API base URL. Build with --dart-define=APP_ENV=local|dev|prod.',
               ),
             );
           }
@@ -120,11 +120,6 @@ class ApiClient extends GetxService {
     final base = ApiConfig.resolved();
     if (base == null || base.isEmpty) return '';
     return '$base${ApiConfig.prefix}';
-  }
-
-  void applyBaseUrl(String baseUrl) {
-    dio.options.baseUrl = '${ApiConfig.adjustForPlatform(baseUrl)}${ApiConfig.prefix}';
-    AppLog.info('API base set to ${dio.options.baseUrl}', tag: 'API');
   }
 
   bool _isUnauthorized(DioException error) {

@@ -234,21 +234,11 @@ class _ActivityDetailsViewState extends State<ActivityDetailsView> {
   @override
   Widget build(BuildContext context) {
     if (!Get.find<SessionController>().guardVerifiedAccess()) {
-      return Scaffold(appBar: AppBar(title: Text('what_did_you'.tr)), body: const SizedBox.shrink());
+      return Scaffold(appBar: OrganicAppBar(title: 'what_did_you'.tr), body: const SizedBox.shrink());
     }
     return Scaffold(
       backgroundColor: AppColors.paper,
-      appBar: AppBar(
-        backgroundColor: HomeColors.navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text(c.purposeLabel),
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: HomeColors.navy,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-        ),
-      ),
+      appBar: OrganicAppBar(title: c.purposeLabel),
       body: ListView(
         padding: const EdgeInsets.all(16),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -429,7 +419,7 @@ class ActivityConfirmView extends StatelessWidget {
     final session = Get.find<SessionController>();
     final booth = session.member?['booth'] as Map?;
     return Scaffold(
-      appBar: AppBar(title: Text('booth_meeting'.tr)),
+      appBar: OrganicAppBar(title: 'booth_meeting'.tr),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -525,7 +515,7 @@ class ActivityRejectedView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('booth_meeting'.tr)),
+      appBar: OrganicAppBar(title: 'booth_meeting'.tr),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

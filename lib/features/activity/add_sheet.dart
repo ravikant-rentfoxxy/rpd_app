@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/translations/app_translations.dart';
 import '../../core/widgets/ui.dart';
 import '../post/post_views.dart';
 import '../session/session_controller.dart';
@@ -14,10 +15,15 @@ class ActivityAction {
     required this.icon,
     required this.color,
     required this.wash,
+    this.labelKey,
   });
 
   final String title;
   final String sub;
+
+  /// Translation key behind [title]; the tile pairs its English wording
+  /// underneath on the Hindi and Bhojpuri locales.
+  final String? labelKey;
   final String type;
   final IconData icon;
   final Color color;
@@ -27,6 +33,7 @@ class ActivityAction {
 List<ActivityAction> activityActions() => [
       ActivityAction(
         title: 'meeting'.tr,
+        labelKey: 'meeting',
         sub: 'बैठक',
         type: 'MEETING',
         icon: Icons.groups_outlined,
@@ -35,6 +42,7 @@ List<ActivityAction> activityActions() => [
       ),
       ActivityAction(
         title: 'griha'.tr,
+        labelKey: 'griha',
         sub: 'गृह संपर्क',
         type: 'GRIHA_SAMPARK',
         icon: Icons.home_outlined,
@@ -43,6 +51,7 @@ List<ActivityAction> activityActions() => [
       ),
       ActivityAction(
         title: 'programme'.tr,
+        labelKey: 'programme',
         sub: 'कार्यक्रम',
         type: 'PUBLIC_PROGRAMME',
         icon: Icons.campaign_outlined,
@@ -51,6 +60,7 @@ List<ActivityAction> activityActions() => [
       ),
       ActivityAction(
         title: 'training'.tr,
+        labelKey: 'training',
         sub: 'प्रशिक्षण',
         type: 'TRAINING',
         icon: Icons.menu_book_outlined,
@@ -161,36 +171,49 @@ class _ActivityTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(18);
+    final english = action.labelKey == null ? null : englishLabel(action.labelKey!);
     return Material(
-      color: action.wash,
-      borderRadius: BorderRadius.circular(24),
+      color: HomeColors.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: radius,
+        side: const BorderSide(color: HomeColors.border, width: 1.5),
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+          padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                child: Icon(action.icon, color: action.color, size: 20),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(color: action.wash, borderRadius: BorderRadius.circular(11)),
+                    child: Icon(action.icon, color: action.color, size: 21),
+                  ),
+                  const Spacer(),
+                  const Icon(Icons.arrow_forward_rounded, size: 16, color: HomeColors.muted2),
+                ],
               ),
               const Spacer(),
               Text(
                 action.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.ink),
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5, color: AppColors.ink),
               ),
-              Text(
-                action.sub,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: action.color, fontWeight: FontWeight.w600),
-              ),
+              if (english != null)
+                Text(
+                  english,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12.5, color: HomeColors.muted, height: 1.2),
+                ),
             ],
           ),
         ),

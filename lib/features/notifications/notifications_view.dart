@@ -54,32 +54,10 @@ class _NotificationsViewState extends State<NotificationsView> {
     }
   }
 
-  Future<void> _markAll() async {
-    if (items.every((n) => n['seen'] == true)) return;
-    items.assignAll(items.map((n) => {...n, 'seen': true}));
-    Get.find<SessionController>().unreadNotifications.value = 0;
-    try {
-      await markAllNotificationsSeen();
-    } catch (_) {
-      await _load();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: OrganicAppBar(
-        title: 'notifications'.tr,
-        actions: [
-          TextButton(
-            onPressed: _markAll,
-            child: Text(
-              'mark_all_read'.tr,
-              style: const TextStyle(color: HomeColors.orangeSoft, fontWeight: FontWeight.w700, fontSize: 12.5),
-            ),
-          ),
-        ],
-      ),
+      appBar: OrganicAppBar(title: 'notifications'.tr),
       body: Obx(() {
         if (loading.value) {
           return const Center(child: CircularProgressIndicator(color: HomeColors.orange));

@@ -1,16 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../../core/constants/post_issues.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/app_colors.dart';
-import '../../core/utils/local_image.dart';
-import '../../core/widgets/language_dropdown.dart';
+import '../../core/update/app_upgrade.dart';
+import '../../core/utils/api_error.dart';
+import '../../core/utils/distance.dart';
+import '../../core/utils/media_url.dart';
+import '../../core/widgets/iro_header.dart';
+import 'package:latlong2/latlong.dart';
+import '../../core/widgets/iro_map.dart';
+import '../../core/widgets/iro_ui.dart';
+import '../../data/models/broadcast.dart';
+import '../../data/models/district_snapshot.dart';
 import '../../data/models/home_feed.dart';
+import '../post/post_views.dart';
 import '../session/session_controller.dart';
+import 'district_map_view.dart';
 import 'home_shimmer.dart';
 import 'home_widgets.dart';
 
+/// Home answers one question before anything else: what is happening in my
+/// district right now. The sector view comes first, the four numbers that
+/// change daily come second, and the issue posts a member can walk to come
+/// third.
 class HomeView extends StatelessWidget {
   const HomeView({super.key});
 
@@ -20,284 +34,251 @@ class HomeView extends StatelessWidget {
     if (session.home.value == null && !session.homeLoading.value) {
       session.loadHome();
     }
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
-        statusBarColor: HomeColors.navy,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
-      ),
-      child: Obx(() {
-        final topInset = MediaQuery.paddingOf(context).top;
-        final showShimmer = session.homeLoading.value && session.home.value == null;
-        if (showShimmer) {
-          return HomeShimmer(topInset: topInset);
-        }
-        final member = session.member ?? {};
-        final home = session.home.value;
-        final stats = Map<String, dynamic>.from(home?['stats'] as Map? ?? {});
-        final booth = member['booth'] as Map?;
-        final queue = session.syncCount.value;
-        final events = upcomingEventsFrom(
-          home?['upcomingEvents'] as List?,
-          useFallback: home == null,
-          limit: 5,
-        );
-        final videos = feedItemsFrom(home?['recentVideos'] as List?, fallback: recentVideos);
-        final blogs = feedItemsFrom(home?['recentBlogs'] as List?, fallback: recentBlogs);
-        session.postsTick.value;
-        final nearbyPosts = session.recentRegionalPosts(limit: 4);
-        final boothScore = (stats['boothScore'] ?? booth?['healthScore'] ?? 61) as num;
-        // A member who is not verified yet is not placed on the board, so show 0
-        // rather than a position they have not earned.
-        final rank = session.needsVerification ? '0' : '${stats['mandalRank'] ?? 0}';
-        final size = '${stats['mandalSize'] ?? 0}';
-        return ColoredBox(
-          color: HomeColors.paper,
-          child: RefreshIndicator(
-            color: HomeColors.orange,
-            displacement: topInset + 80,
-            onRefresh: session.loadHome,
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-              slivers: [
-                SliverToBoxAdapter(
-                  child: _HomeHero(
-                    topInset: topInset,
-                    greeting: _dayGreeting(),
-                    name: _displayName(member),
-                    photoUrl: memberPhotoRef(member),
-                    initials: _initials(member['fullName'] as String?),
-                    activities: (stats['activitiesThisMonth'] as num?) ?? 0,
-                    unreadCount: session.unreadNotifications.value,
-                  ),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 36),
-                  sliver: SliverList.list(
-                    children: [
-                      if (queue > 0)
-                        _TaskBanner(
-                          title: 'queue_bar'.trParams({'n': '$queue'}),
-                          subtitle: '',
-                          icon: Icons.cloud_upload_outlined,
-                          onTap: () => Get.toNamed(Routes.sync),
+      value: iroOverlay,
+      // The update prompt lives here rather than at the root, so it meets a
+      // member who is already in the app and can act on it.
+      child: AppUpgradeGate(
+        child: Scaffold(
+          backgroundColor: Iro.mint,
+          body: Obx(() {
+            if (session.homeLoading.value && session.home.value == null) {
+              return HomeShimmer(topInset: 0);
+            }
+            final home = session.home.value;
+            final snapshot = DistrictSnapshot.fromJson(home?['districtSnapshot']);
+            final events = upcomingEventsFrom(home?['upcomingEvents'] as List?, limit: 5);
+            final videos = feedItemsFrom(home?['recentVideos'] as List?);
+            final blogs = feedItemsFrom(home?['recentBlogs'] as List?);
+            // Reading the tick here is what redraws the rail after a vote or a
+            // post of the member's own lands.
+            session.postsTick.value;
+            final issuePosts = session.homeIssuePosts();
+            // RPD's own home content, which IRO has no equivalent for because it
+            // runs with no server: the announcement and the upload queue.
+            final announcement = Broadcast.fromJson(home?['announcement']);
+            final queue = session.syncCount.value;
+
+            // The bar spans the screen, so it sits above the list rather than
+            // inside its padding.
+            return Column(
+              children: [
+                SafeArea(bottom: false, child: IroTopBar(section: 'home'.tr)),
+                Expanded(
+                  child: RefreshIndicator(
+                    color: Iro.bright,
+                    onRefresh: session.loadHome,
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 104),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        if (announcement != null) HomeBroadcastCard(broadcast: announcement),
+                        _SectorPanel(
+                          snapshot: snapshot,
+                          posts: issuePosts,
+                          events: events,
+                          centre: districtCentreFrom(home?['districtCentre']),
                         ),
-                      _TaskBanner(
-                        title: 'tasks_due'.trParams({'n': '${_tasksDue(home).length}'}),
-                        subtitle: 'tasks_activity_sub'.tr,
-                        icon: Icons.check_rounded,
-                        onTap: () => session.shellIndex.value = 1,
-                      ),
-                      HomeEventsBanner(events: events),
-                      HomeStatsRow(
-                        members: '${stats['membersAdded'] ?? 0}',
-                        events: '${stats['currentEvents'] ?? 0}',
-                      ),
-                      HomeLeaderboard(
-                        rank: rank,
-                        size: size,
-                        score: boothScore,
-                        points: (stats['points'] as num?) ?? 0,
-                        scope: '${stats['leaderboardScope'] ?? 'assembly'}',
-                        area: '${stats['leaderboardArea'] ?? ''}',
-                      ),
-                      HomeSectionHeader(
-                        title: 'recent_videos'.tr,
-                        eyebrow: 'watch_learn'.tr,
-                        onSeeMore: () => Get.toNamed(Routes.recentVideos),
-                      ),
-                      HomeVideoGrid(items: videos),
-                      HomeSectionHeader(
-                        title: 'recent_blogs'.tr,
-                        onSeeMore: () => Get.toNamed(Routes.recentBlogs),
-                      ),
-                      HomeBlogRail(items: blogs),
-                      HomeSectionHeader(
-                        title: 'recent_activity_near'.tr,
-                        onSeeMore: () => Get.toNamed(Routes.posts),
-                      ),
-                      HomeActivityRail(posts: nearbyPosts),
-                    ],
+                        _SnapshotGrid(snapshot: snapshot),
+                        const SizedBox(height: 14),
+                        if (queue > 0) _QueueBanner(queue: queue),
+                        IroSectionHeading(
+                          'important_issues'.tr,
+                          trailing: 'verified_nearby'.trParams({'n': '${snapshot.verifiedNearby}'}),
+                          // The count is of posts other members filed, so land on that pane.
+                          onTrailingTap: () => Get.toNamed(Routes.posts, arguments: PostsTab.others),
+                        ),
+                        _IssuePostRail(posts: issuePosts),
+                        // Always shown, empty or not: a member who sees nothing here
+                        // should be told there is nothing on, not left wondering
+                        // whether the section exists.
+                        const SizedBox(height: 20),
+                        HomeEventsBanner(events: events),
+                        if (videos.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          HomeSectionHeader(
+                            title: 'recent_videos'.tr,
+                            onSeeMore: () => Get.toNamed(Routes.recentVideos),
+                          ),
+                          HomeVideoGrid(items: videos),
+                        ],
+                        if (blogs.isNotEmpty) ...[
+                          HomeSectionHeader(title: 'recent_blogs'.tr, onSeeMore: () => Get.toNamed(Routes.recentBlogs)),
+                          SizedBox(
+                            height: 214,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              clipBehavior: Clip.none,
+                              padding: const EdgeInsets.only(bottom: 6),
+                              itemCount: blogs.length,
+                              separatorBuilder: (_, _) => const SizedBox(width: 12),
+                              itemBuilder: (context, index) => HomeFeedCard(item: blogs[index]),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
               ],
-            ),
-          ),
-        );
-      }),
+            );
+          }),
+        ),
+      ),
     );
   }
 }
 
-class _HomeHero extends StatelessWidget {
-  const _HomeHero({
-    required this.topInset,
-    required this.greeting,
-    required this.name,
-    required this.photoUrl,
-    required this.initials,
-    required this.activities,
-    required this.unreadCount,
-  });
+/// The district header and its painted sector view. The map is drawn locally —
+/// the app has no tiles to fetch and still has to show a member where the
+/// open incidents sit.
+class _SectorPanel extends StatefulWidget {
+  const _SectorPanel({required this.snapshot, required this.posts, required this.events, required this.centre});
+  final DistrictSnapshot snapshot;
+  final List<Map<String, dynamic>> posts;
+  final List<UpcomingEvent> events;
 
-  final double topInset;
-  final String greeting;
-  final String name;
-  final String? photoUrl;
-  final String initials;
-  /// Activities this member recorded in the current calendar month.
-  final num activities;
-  final int unreadCount;
+  /// The middle of the member's district, so the map opens there rather than on
+  /// the country when nothing has been filed.
+  final LatLng? centre;
+
+  @override
+  State<_SectorPanel> createState() => _SectorPanelState();
+}
+
+class _SectorPanelState extends State<_SectorPanel> {
+  bool showEvents = false;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: HomeColors.navy,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(36)),
-      ),
-      padding: EdgeInsets.fromLTRB(20, topInset + 12, 20, 30),
+    final session = Get.find<SessionController>();
+    final member = session.member ?? {};
+    final booth = member['booth'] is Map ? Map<String, dynamic>.from(member['booth'] as Map) : const {};
+    final district = '${member['districtName'] ?? booth['districtName'] ?? ''}'.trim();
+    final state = '${member['stateName'] ?? booth['stateName'] ?? ''}'.trim();
+    final sector = '${member['assemblyName'] ?? booth['assemblyName'] ?? booth['name'] ?? ''}'.trim();
+    final title = district.isEmpty ? 'your_district'.tr : '$district ${'district'.tr}';
+    final line = [if (state.isNotEmpty) state, if (sector.isNotEmpty) sector].join(' • ');
+
+    // Both sets are built: the panel shows one, and the full screen it opens
+    // needs the other to toggle to. Anything without a fix is left off rather
+    // than dropped at the origin.
+    final eventPins = [
+      for (final event in widget.events)
+        ?pinFrom(
+          event.latitude,
+          event.longitude,
+          tone: Iro.green,
+          icon: Icons.event_rounded,
+          label: event.title,
+          onTap: event.id.isEmpty
+              ? null
+              : () => Get.toNamed(
+                  event.kind == 'MEETING' ? Routes.meeting : Routes.eventDetail,
+                  arguments: event.toJson(),
+                ),
+        ),
+    ];
+    final issuePins = [
+      for (final post in widget.posts)
+        ?pinFrom(
+          post['latitude'],
+          post['longitude'],
+          tone: '${post['status'] ?? ''}'.toUpperCase() == 'RESOLVED' ? Iro.greenMid : Iro.alert,
+          icon: issueIconOf(post),
+          label: issueLabelOf(post),
+          onTap: () => Get.toNamed(Routes.postDetail, arguments: post),
+        ),
+    ];
+    final pins = showEvents ? eventPins : issuePins;
+
+    return IroCard(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      margin: const EdgeInsets.only(bottom: 14),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              GestureDetector(
-                onTap: () => Get.toNamed(Routes.profile),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: const BoxDecoration(shape: BoxShape.circle, color: HomeColors.accent300),
-                      clipBehavior: Clip.antiAlias,
-                      child: localOrNetworkPhoto(
-                        raw: photoUrl,
-                        fallback: Center(
-                          child: Text(
-                            initials,
-                            style: GoogleFonts.bricolageGrotesque(
-                              color: HomeColors.accent900,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (!Get.find<SessionController>().canUseMemberActions)
-                      Positioned(
-                        right: -2,
-                        top: -2,
-                        child: Container(
-                          width: 16,
-                          height: 16,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE53935),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: HomeColors.navy, width: 2),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+              const Icon(Icons.location_on_rounded, size: 18, color: Iro.greenMid),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: iroDisplay(size: 18)),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(greeting, style: const TextStyle(color: HomeColors.navyMuted, fontSize: 12)),
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.bricolageGrotesque(
-                        color: Colors.white,
-                        fontSize: 19,
-                        fontWeight: FontWeight.w500,
-                        height: 1.2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const LanguageDropdown(pill: true),
-              const SizedBox(width: 10),
-              GestureDetector(
-                onTap: () async {
-                  await Get.toNamed(Routes.notifications);
-                  await Get.find<SessionController>().refreshUnreadNotifications();
-                },
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: const BoxDecoration(color: HomeColors.navyMid, shape: BoxShape.circle),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    alignment: Alignment.center,
-                    children: [
-                      const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 17),
-                      if (unreadCount > 0)
-                        Positioned(
-                          top: -4,
-                          right: -4,
-                          child: Container(
-                            constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            decoration: BoxDecoration(
-                              color: HomeColors.orange,
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(color: HomeColors.navy, width: 2),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              unreadCount > 99 ? '99+' : '$unreadCount',
-                              style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
+              const SizedBox(width: 3),
+              const Icon(Icons.expand_more_rounded, size: 18, color: Iro.muted),
+              const Spacer(),
+              IroChip('live_gis'.tr, dot: true, fg: Iro.greenMid, bg: Iro.wash),
             ],
           ),
-          const SizedBox(height: 26),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          if (line.isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Padding(
+              padding: const EdgeInsets.only(left: 23),
+              child: Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: iroLabel(size: 11.5)),
+            ),
+          ],
+          const SizedBox(height: 11),
+          IroMap(
+            height: 168,
+            pins: pins,
+            fallbackCentre: widget.centre,
+            // Tapping the panel opens the same map with the screen to itself.
+            onTap: () => Get.toNamed(
+              Routes.districtMap,
+              arguments: DistrictMapArgs(
+                issues: issuePins,
+                events: eventPins,
+                centre: widget.centre,
+                showEvents: showEvents,
+                title: title,
+              ),
+            ),
+            overlay: [
+              Positioned(
+                left: 9,
+                top: 9,
+                child: IroChip(
+                  'sector_zone'.trParams({'name': (sector.isEmpty ? title : sector).toUpperCase()}),
+                  dense: true,
+                  size: 9,
+                  fg: Colors.white,
+                  bg: const Color(0xD90C3320),
+                ),
+              ),
+              Positioned(
+                right: 9,
+                top: 9,
+                child: IroChip(
+                  'live_geofence'.tr,
+                  dense: true,
+                  size: 9,
+                  dot: true,
+                  fg: Iro.goldBright,
+                  bg: const Color(0xD90C3320),
+                ),
+              ),
+              Positioned(
+                left: 10,
+                bottom: 10,
+                child: Row(
                   children: [
+                    const Icon(Icons.place_rounded, size: 13, color: Colors.white),
+                    const SizedBox(width: 4),
                     Text(
-                      'activities_this_month'.tr,
-                      style: const TextStyle(color: HomeColors.navyMuted, fontSize: 12),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${activities.round()}',
-                      style: GoogleFonts.bricolageGrotesque(
-                        color: Colors.white,
-                        fontSize: 36,
-                        fontWeight: FontWeight.w500,
-                        height: 1,
-                      ),
+                      'active_incidents'.trParams({'n': '${pins.length}'}),
+                      style: iroLabel(size: 10.5, color: Colors.white, weight: FontWeight.w700),
                     ),
                   ],
                 ),
               ),
-              GestureDetector(
-                onTap: () => Get.toNamed(Routes.districtHealth),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  decoration: BoxDecoration(color: HomeColors.orange, borderRadius: BorderRadius.circular(999)),
-                  child: Text(
-                    'view_district'.tr,
-                    style: GoogleFonts.bricolageGrotesque(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
-                  ),
-                ),
+              // OpenStreetMap's tile policy asks for this on every map.
+              const Positioned(left: 10, bottom: 34, child: IroMapCredit()),
+              Positioned(
+                right: 9,
+                bottom: 9,
+                child: _MapToggle(showEvents: showEvents, onChanged: (value) => setState(() => showEvents = value)),
               ),
             ],
           ),
@@ -307,90 +288,369 @@ class _HomeHero extends StatelessWidget {
   }
 }
 
-class _TaskBanner extends StatelessWidget {
-  const _TaskBanner({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.onTap,
-  });
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final VoidCallback onTap;
+class _MapToggle extends StatelessWidget {
+  const _MapToggle({required this.showEvents, required this.onChanged});
+  final bool showEvents;
+  final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Material(
-        color: HomeColors.peach,
-        borderRadius: BorderRadius.circular(24),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(24),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: const BoxDecoration(color: HomeColors.orange, shape: BoxShape.circle),
-                  child: Icon(icon, color: Colors.white, size: 18),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: HomeColors.ink)),
-                      if (subtitle.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(subtitle, style: const TextStyle(fontSize: 12, color: HomeColors.orangeDark)),
-                      ],
-                    ],
-                  ),
-                ),
-                const Icon(Icons.arrow_forward_rounded, color: HomeColors.orangeDark, size: 18),
-              ],
-            ),
+    Widget seg(String label, bool on, VoidCallback tap) => Material(
+      color: on ? Iro.surface : Colors.transparent,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: tap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          child: Text(
+            label,
+            style: iroLabel(size: 10.5, color: on ? Iro.ink : Colors.white, weight: FontWeight.w700),
           ),
         ),
+      ),
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(color: const Color(0xB30C3320), borderRadius: BorderRadius.circular(11)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          seg('issues'.tr, !showEvents, () => onChanged(false)),
+          seg('events'.tr, showEvents, () => onChanged(true)),
+        ],
       ),
     );
   }
 }
 
-List<Map<String, dynamic>> _tasksDue(Map<String, dynamic>? home) {
-  return ((home?['tasksDueToday'] as List?) ?? [])
-      .whereType<Map>()
-      .map((e) => Map<String, dynamic>.from(e))
-      .toList();
-}
+/// Four numbers, two rows. IntrinsicHeight so both tiles in a row match even
+/// when one label wraps — a stretched Row inside a list would otherwise have no
+/// height to lay out against.
+class _SnapshotGrid extends StatelessWidget {
+  const _SnapshotGrid({required this.snapshot});
+  final DistrictSnapshot snapshot;
 
-String _displayName(Map<String, dynamic> member) {
-  final name = (member['fullName'] as String?)?.trim() ?? '';
-  if (name.isNotEmpty) return name;
-  final post = member['post'] as String?;
-  if (post != null && post.isNotEmpty) return 'post_$post'.tr;
-  return 'post_MEMBER'.tr;
-}
+  @override
+  Widget build(BuildContext context) {
+    final session = Get.find<SessionController>();
+    final member = session.member ?? {};
+    final booth = member['booth'] is Map ? Map<String, dynamic>.from(member['booth'] as Map) : const {};
+    final sector = '${member['assemblyName'] ?? booth['name'] ?? ''}'.trim();
 
-String _dayGreeting() {
-  final hour = DateTime.now().hour;
-  if (hour < 12) return 'good_morning'.tr;
-  if (hour < 17) return 'good_afternoon'.tr;
-  return 'good_evening'.tr;
-}
+    Widget row(List<Widget> tiles) => IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: tiles[0]),
+          const SizedBox(width: 10),
+          Expanded(child: tiles[1]),
+        ],
+      ),
+    );
 
-String _initials(String? name) {
-  final cleaned = (name ?? '').trim();
-  if (cleaned.isEmpty) return 'RP';
-  if (RegExp(r'^\d+$').hasMatch(cleaned)) {
-    return cleaned.length >= 2 ? cleaned.substring(cleaned.length - 2) : cleaned;
+    return Column(
+      children: [
+        row([
+          IroStatTile(
+            label: 'district_members'.tr,
+            value: groupIndian(snapshot.members),
+            note: 'joined_today'.trParams({'n': '${snapshot.joinedToday}'}),
+            icon: Icons.groups_rounded,
+            noteTone: Iro.greenMid,
+            onTap: () => Get.toNamed(Routes.members),
+          ),
+          IroStatTile(
+            label: 'ground_active'.tr,
+            value: '${snapshot.groundActive}',
+            note: sector.isEmpty ? 'active_ground'.tr : sector,
+            icon: Icons.directions_walk_rounded,
+          ),
+        ]),
+        const SizedBox(height: 10),
+        row([
+          IroStatTile(
+            label: 'urgent_issues'.tr,
+            value: '${snapshot.urgentIssues}',
+            note: 'needs_action'.tr,
+            icon: Icons.error_outline_rounded,
+            tone: Iro.alert,
+            noteTone: Iro.alert,
+            onTap: () => Get.toNamed(Routes.posts),
+          ),
+          IroStatTile(
+            label: 'resolution_rate'.tr,
+            value: '${snapshot.resolutionRate}%',
+            note: 'quarter_target'.tr,
+            icon: Icons.verified_outlined,
+            onTap: () => Get.toNamed(Routes.districtHealth),
+          ),
+        ]),
+      ],
+    );
   }
-  final parts = cleaned.split(RegExp(r'\s+'));
-  if (parts.length == 1) return parts.first.substring(0, parts.first.length.clamp(0, 2)).toUpperCase();
-  return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+}
+
+/// Work waiting to leave the phone. Only drawn when the queue is not empty, so
+/// it never sits on the screen as a permanent scold.
+class _QueueBanner extends StatelessWidget {
+  const _QueueBanner({required this.queue});
+  final int queue;
+
+  @override
+  Widget build(BuildContext context) {
+    return IroCard(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(12, 11, 14, 11),
+      onTap: () => Get.toNamed(Routes.sync),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(color: Iro.goldWash, borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.cloud_upload_outlined, color: Iro.gold, size: 17),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                IroChip(
+                  'sync_queue'.tr,
+                  icon: Icons.cloud_off_rounded,
+                  size: 9.5,
+                  dense: true,
+                  fg: Iro.gold,
+                  bg: Iro.goldWash,
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  'queue_bar'.trParams({'n': '$queue'}),
+                  style: iroLabel(size: 13, color: Iro.ink, weight: FontWeight.w700),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(Icons.arrow_forward_rounded, color: Iro.gold, size: 18),
+        ],
+      ),
+    );
+  }
+}
+
+/// The issue posts a member can act on without leaving their ward.
+class _IssuePostRail extends StatelessWidget {
+  const _IssuePostRail({required this.posts});
+  final List<Map<String, dynamic>> posts;
+
+  @override
+  Widget build(BuildContext context) {
+    if (posts.isEmpty) {
+      return IroCard(
+        margin: const EdgeInsets.only(bottom: 4),
+        child: Row(
+          children: [
+            const Icon(Icons.outlined_flag_rounded, size: 20, color: Iro.muted2),
+            const SizedBox(width: 10),
+            Expanded(child: Text('no_issues_nearby'.tr, style: iroLabel(size: 12.5))),
+          ],
+        ),
+      );
+    }
+    final width = (MediaQuery.sizeOf(context).width - 74).clamp(230.0, 330.0);
+    // A Row rather than a horizontal ListView: a ListView has to be told one
+    // height for every card, which is what left a short description sitting
+    // over a gap. Here each card is as tall as its own text needs and the rail
+    // takes the height of the tallest. The rail holds at most eight cards, so
+    // there is nothing to gain from building them lazily.
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var i = 0; i < posts.length; i++) ...[
+            if (i > 0) const SizedBox(width: 12),
+            SizedBox(
+              width: width,
+              child: _IssuePostCard(post: posts[i]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _IssuePostCard extends StatefulWidget {
+  const _IssuePostCard({required this.post});
+  final Map<String, dynamic> post;
+
+  @override
+  State<_IssuePostCard> createState() => _IssuePostCardState();
+}
+
+class _IssuePostCardState extends State<_IssuePostCard> {
+  bool sending = false;
+
+  Map<String, dynamic> get post => widget.post;
+
+  /// A post the member has not pushed yet has no server row to vote against.
+  bool get _pending => post['pending'] == true || '${post['serverId'] ?? ''}'.isEmpty;
+
+  Future<void> _vote(String side) async {
+    if (sending || _pending) return;
+    setState(() => sending = true);
+    try {
+      await Get.find<SessionController>().voteOnPost(post, side);
+    } catch (e) {
+      Get.snackbar('Error', apiErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final category = issueCategoryLabelOf(post);
+    final title = issueLabelOf(post);
+    final body = '${post['description'] ?? ''}'.trim();
+    final place = '${post['regionLabel'] ?? ''}'.trim();
+    final metres = post['distanceMetres'];
+    final distance = formatMetres(metres is num ? metres.round() : null);
+    final where = [if (distance.isNotEmpty) distance, if (place.isNotEmpty) place].join(' • ');
+    final icon = issueIconOf(post);
+    final image = post['thumbnailUrl'] ?? post['thumbnailPath'] ?? postImageUrl(post);
+    final myVote = '${post['myVote'] ?? ''}'.toUpperCase();
+    final likes = (post['likes'] as num?)?.round() ?? 0;
+    final dislikes = (post['dislikes'] as num?)?.round() ?? 0;
+    final resolved = '${post['status'] ?? ''}'.toUpperCase() == 'RESOLVED';
+    final views = (post['views'] as num?)?.round() ?? 0;
+
+    return IroCard(
+      margin: EdgeInsets.zero,
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 128,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                IroPhoto(url: image?.toString(), icon: icon, seed: title.length),
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0x4D0C3320), Color(0x00000000), Color(0x800C3320)],
+                      stops: [0, 0.4, 1],
+                    ),
+                  ),
+                ),
+                if (category.isNotEmpty)
+                  Positioned(
+                    left: 9,
+                    top: 9,
+                    child: SizedBox(
+                      width: 168,
+                      child: IroChip(
+                        category,
+                        dense: true,
+                        size: 9.5,
+                        icon: icon,
+                        fg: Colors.white,
+                        bg: const Color(0xD9114A2C),
+                      ),
+                    ),
+                  ),
+                if (where.isNotEmpty)
+                  Positioned(
+                    left: 9,
+                    bottom: 9,
+                    child: IroChip(where, dense: true, size: 9.5, fg: Iro.ink, bg: const Color(0xF2FFFFFF)),
+                  ),
+                if (post['authorVerified'] == true)
+                  const Positioned(
+                    right: 9,
+                    top: 9,
+                    child: Icon(Icons.verified_rounded, size: 17, color: Colors.white),
+                  ),
+                if (resolved)
+                  Positioned(
+                    right: 9,
+                    bottom: 9,
+                    child: IroChip(
+                      'resolve_resolved'.tr,
+                      dense: true,
+                      size: 9,
+                      fg: Colors.white,
+                      bg: const Color(0xD91C7D48),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: iroDisplay(size: 15)),
+                const SizedBox(height: 5),
+                // One line of description makes a short card, six make a tall
+                // one. The cap is there so a 2000-character grievance cannot
+                // push the rail off the screen.
+                Text(
+                  body.isEmpty ? category : body,
+                  maxLines: 6,
+                  overflow: TextOverflow.ellipsis,
+                  style: iroLabel(size: 11.5, color: Iro.muted, weight: FontWeight.w500).copyWith(height: 1.45),
+                ),
+                const SizedBox(height: 9),
+                Row(
+                  children: [
+                    IroVoteButton(
+                      icon: myVote == 'LIKE' ? Icons.thumb_up_rounded : Icons.thumb_up_outlined,
+                      count: likes,
+                      on: myVote == 'LIKE',
+                      tone: Iro.greenMid,
+                      enabled: !_pending,
+                      onTap: () => _vote('LIKE'),
+                    ),
+                    const SizedBox(width: 8),
+                    IroVoteButton(
+                      icon: myVote == 'DISLIKE' ? Icons.thumb_down_rounded : Icons.thumb_down_outlined,
+                      count: dislikes,
+                      on: myVote == 'DISLIKE',
+                      tone: Iro.alert,
+                      enabled: !_pending,
+                      onTap: () => _vote('DISLIKE'),
+                    ),
+                    const Spacer(),
+                    // A post nobody has opened yet says nothing rather than
+                    // boasting about zero.
+                    if (views > 0) ...[IroViewCount(views), const SizedBox(width: 10)],
+                    IroActionButton(
+                      label: 'inspect'.tr,
+                      height: 36,
+                      wide: false,
+                      onTap: () => Get.toNamed(Routes.postDetail, arguments: post),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

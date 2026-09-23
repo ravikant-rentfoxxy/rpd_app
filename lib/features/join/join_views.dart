@@ -15,6 +15,7 @@ import '../../data/remote/api_client.dart';
 import '../session/profile_photo_sheet.dart';
 import '../session/session_controller.dart';
 import 'contribute_dialog.dart';
+import 'invite_field.dart';
 import 'join_chrome.dart';
 import '../../core/widgets/flash.dart';
 
@@ -218,6 +219,7 @@ class AboutYouForm extends StatelessWidget {
             },
           ),
         ),
+        const InviteCodeField(),
         VerifyButton('continue'.tr, onTap: continueNext),
       ],
     );
@@ -667,6 +669,9 @@ class ConsentView extends StatelessWidget {
                     },
                     'requiredConsentVersion': '2026.08',
                     'whatsappOptIn': wa.value,
+                    // Judged on the server: a recruiting code credits its
+                    // owner, an invite code hands over the post it carries.
+                    if (inviteCodeFromDraft(hive).isNotEmpty) 'inviteCode': inviteCodeFromDraft(hive),
                   }, openHome: false);
                   await showContributeDialog();
                   session.openPostAuth();

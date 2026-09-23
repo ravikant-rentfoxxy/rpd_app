@@ -38,6 +38,9 @@ class Routes {
   static const createEvent = '/events/create';
   static const eventDetail = '/events/detail';
   static const engagementPlay = '/engagement/play';
+  static const story = '/community/story';
+  static const districtMap = '/home/map';
+  static const leaderboard = '/leaderboard';
   static const activityEvents = '/activity-events';
   static const activityEventPlay = '/activity-events/play';
   static const posts = '/posts';

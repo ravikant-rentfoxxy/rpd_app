@@ -8,6 +8,13 @@ class HomeFeedItem {
     this.id = '',
     this.description = '',
     this.body = '',
+    this.kind = '',
+    this.likes = 0,
+    this.dislikes = 0,
+    this.myVote = '',
+    this.videoSource = 'LINK',
+    this.mediaKey,
+    this.externalUrl = '',
   });
 
   final String title;
@@ -22,7 +29,55 @@ class HomeFeedItem {
   /// inside the app; the rest open [url] in a browser.
   final String body;
 
+  /// 'VIDEO' or 'BLOG' — which endpoint a vote on this item goes to. A blog can
+  /// carry [video] true (a linked reel), so the flag cannot stand in for it.
+  final String kind;
+  final int likes;
+  final int dislikes;
+
+  /// 'LIKE', 'DISLIKE', or empty when this member has not voted.
+  final String myVote;
+
+  /// 'UPLOAD' for a file put through the portal, 'LINK' for a URL pasted into
+  /// it. The portal accepts one or the other, never both.
+  final String videoSource;
+
+  /// The Bunny Stream key behind an upload, which the in-app player needs.
+  final String? mediaKey;
+
+  /// The pasted URL behind a link. [url] already resolves to whichever applies,
+  /// but knowing the original matters when deciding where to send a tap.
+  final String externalUrl;
+
+  /// True when the video was uploaded here, so it plays in the app rather than
+  /// being handed to the browser.
+  bool get isUploadedVideo => video && videoSource == 'UPLOAD' && (mediaKey ?? '').isNotEmpty;
+
   bool get readInApp => body.trim().isNotEmpty;
+
+  /// The path segment the vote endpoint expects, falling back to what the card
+  /// looks like when an older payload carried no kind.
+  String get voteKind => kind.isNotEmpty ? kind.toLowerCase() : (video ? 'video' : 'blog');
+
+  HomeFeedItem withVote({required int likes, required int dislikes, required String myVote}) {
+    return HomeFeedItem(
+      title: title,
+      url: url,
+      source: source,
+      imageUrl: imageUrl,
+      video: video,
+      id: id,
+      description: description,
+      body: body,
+      kind: kind,
+      likes: likes,
+      dislikes: dislikes,
+      myVote: myVote,
+      videoSource: videoSource,
+      mediaKey: mediaKey,
+      externalUrl: externalUrl,
+    );
+  }
 
   String? get youtubeId => youtubeVideoId(url);
 
@@ -36,6 +91,13 @@ class HomeFeedItem {
         'video': video,
         'description': description,
         'body': body,
+        'kind': kind,
+        'likes': likes,
+        'dislikes': dislikes,
+        'myVote': myVote,
+        'videoSource': videoSource,
+        'mediaKey': mediaKey,
+        'externalUrl': externalUrl,
       };
 
   factory HomeFeedItem.fromJson(Map<String, dynamic> json) {
@@ -48,6 +110,13 @@ class HomeFeedItem {
       id: '${json['id'] ?? ''}',
       description: '${json['description'] ?? ''}',
       body: '${json['body'] ?? ''}',
+      kind: '${json['kind'] ?? ''}'.toUpperCase(),
+      likes: (json['likes'] as num?)?.round() ?? 0,
+      dislikes: (json['dislikes'] as num?)?.round() ?? 0,
+      myVote: '${json['myVote'] ?? ''}'.toUpperCase(),
+      videoSource: '${json['videoSource'] ?? 'LINK'}'.toUpperCase(),
+      mediaKey: (json['mediaKey'] as String?)?.trim().isEmpty == true ? null : json['mediaKey'] as String?,
+      externalUrl: '${json['externalUrl'] ?? ''}',
     );
   }
 }
@@ -71,106 +140,6 @@ String? youtubeVideoId(String url) {
   return null;
 }
 
-const recentVideos = [
-  HomeFeedItem(
-    title: 'NUBC की राष्ट्रीय बैठक, पूर्व सांसद डी. पी. यादव का जन्मदिन मनाया',
-    url: 'https://youtu.be/vV7fZd9a7NQ?si=-A5YMTTInzR4XS7y',
-    source: 'TN24 News',
-    imageUrl: 'https://i.ytimg.com/vi/vV7fZd9a7NQ/hqdefault.jpg',
-    video: true,
-  ),
-  HomeFeedItem(
-    title: 'NUBC Central Executive Meeting 2026 · Constitution Club Delhi',
-    url: 'https://www.youtube.com/watch?v=YtkL3YBZCq0',
-    source: 'Bharat Plus Tv',
-    imageUrl: 'https://i.ytimg.com/vi/YtkL3YBZCq0/hqdefault.jpg',
-    video: true,
-  ),
-  HomeFeedItem(
-    title: 'पूर्व सांसद डी. पी. यादव का जन्मदिन एवं राष्ट्रीय पिछड़ा वर्ग अधिवेशन',
-    url: 'https://youtu.be/gtoDNLfEucE',
-    source: 'TEZ SAMACHAR',
-    imageUrl: 'https://i.ytimg.com/vi/gtoDNLfEucE/hqdefault.jpg',
-    video: true,
-  ),
-  HomeFeedItem(
-    title: 'IRO booth committee orientation · field briefing',
-    url: 'https://www.youtube.com/watch?v=YtkL3YBZCq0',
-    source: 'IRO Media',
-    imageUrl: 'https://i.ytimg.com/vi/YtkL3YBZCq0/hqdefault.jpg',
-    video: true,
-  ),
-  HomeFeedItem(
-    title: 'Membership drive update · district coordination',
-    url: 'https://youtu.be/gtoDNLfEucE',
-    source: 'IRO Desk',
-    imageUrl: 'https://i.ytimg.com/vi/gtoDNLfEucE/hqdefault.jpg',
-    video: true,
-  ),
-];
-
-const recentBlogs = [
-  HomeFeedItem(
-    title: 'उत्कृष्ट कार्य के लिए महिलाओं को किया गया सम्मानित',
-    url: 'https://www.viraatvaibhav.com/news/latest-news/105867.html',
-    source: 'Viraat Vaibhav',
-  ),
-  HomeFeedItem(
-    title: 'कॉन्स्टिट्यूशन क्लब नई दिल्ली में NUBC कार्यकारिणी की बैठक',
-    url: 'https://dhunt.in/1548np',
-    source: 'Dailyhunt',
-  ),
-  HomeFeedItem(
-    title: 'NUBC बैठक · कार्यक्रम रील',
-    url: 'https://www.facebook.com/reel/1489043533249151',
-    source: 'Facebook',
-    video: true,
-  ),
-  HomeFeedItem(
-    title: 'Booth-level outreach playbook',
-    url: 'https://www.viraatvaibhav.com/news/latest-news/105867.html',
-    source: '4 MIN READ',
-  ),
-  HomeFeedItem(
-    title: 'Griha sampark: what counts as verified',
-    url: 'https://dhunt.in/1548np',
-    source: '6 MIN READ',
-  ),
-];
-
-const dummyNearbyActivities = [
-  HomeFeedItem(
-    title: 'Booth meeting',
-    url: '',
-    source: 'Near your booth',
-    imageUrl: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=800&q=60',
-  ),
-  HomeFeedItem(
-    title: 'Griha sampark',
-    url: '',
-    source: 'Ward walk',
-    imageUrl: 'https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?auto=format&fit=crop&w=800&q=60',
-  ),
-  HomeFeedItem(
-    title: 'Public programme',
-    url: '',
-    source: 'Community hall',
-    imageUrl: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=800&q=60',
-  ),
-  HomeFeedItem(
-    title: 'Training session',
-    url: '',
-    source: 'Mandal office',
-    imageUrl: 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=800&q=60',
-  ),
-  HomeFeedItem(
-    title: 'Membership desk',
-    url: '',
-    source: 'Ward 7',
-    imageUrl: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?auto=format&fit=crop&w=800&q=60',
-  ),
-];
-
 class UpcomingEvent {
   const UpcomingEvent({
     this.id = '',
@@ -186,6 +155,9 @@ class UpcomingEvent {
     this.joiners = const [],
     this.createdAt,
     this.startsAt,
+    this.kind = 'EVENT',
+    this.latitude,
+    this.longitude,
   });
 
   final String id;
@@ -202,6 +174,16 @@ class UpcomingEvent {
   final DateTime? createdAt;
   final DateTime? startsAt;
 
+  /// 'EVENT' for an org event, 'MEETING' for a booth meeting or sabha. The two
+  /// share a card but not their actions: a meeting is joined by invitation, so
+  /// its card offers no Join.
+  final String kind;
+
+  /// Where it is being held, when the host recorded a fix. Null for anything
+  /// entered without one, which the map simply leaves off.
+  final double? latitude;
+  final double? longitude;
+
   UpcomingEvent copyWith({int? joining, bool? joined, List<Map<String, dynamic>>? joiners}) {
     return UpcomingEvent(
       id: id,
@@ -217,6 +199,9 @@ class UpcomingEvent {
       joiners: joiners ?? this.joiners,
       createdAt: createdAt,
       startsAt: startsAt,
+      kind: kind,
+      latitude: latitude,
+      longitude: longitude,
     );
   }
 
@@ -231,6 +216,9 @@ class UpcomingEvent {
         'type': type,
         'hostName': hostName,
         'description': description,
+        'kind': kind,
+        'latitude': latitude,
+        'longitude': longitude,
         'joiners': joiners,
         if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
         if (startsAt != null) 'startsAt': startsAt!.toIso8601String(),
@@ -254,48 +242,24 @@ class UpcomingEvent {
           : const [],
       createdAt: DateTime.tryParse('${json['createdAt'] ?? ''}'),
       startsAt: DateTime.tryParse('${json['startsAt'] ?? ''}'),
+      kind: '${json['kind'] ?? 'EVENT'}'.toUpperCase(),
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
     );
   }
 }
 
-const upcomingEvents = [
-  UpcomingEvent(
-    title: 'Mandal executive meeting',
-    when: '12 Sep · 11:00 AM',
-    place: 'Constitution Club, Delhi',
-    imageUrl: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?auto=format&fit=crop&w=800&q=60',
-    joining: 38,
-  ),
-  UpcomingEvent(
-    title: 'Booth committee orientation',
-    when: '18 Sep · 4:00 PM',
-    place: 'Primary School, Sihani',
-    imageUrl: 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=800&q=60',
-    joining: 22,
-  ),
-  UpcomingEvent(
-    title: 'Griha sampark drive',
-    when: '21 Sep · 9:00 AM',
-    place: 'Ward 4',
-    imageUrl: 'https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?auto=format&fit=crop&w=800&q=60',
-    joining: 15,
-  ),
-];
-
-List<HomeFeedItem> feedItemsFrom(List? raw, {List<HomeFeedItem> fallback = const []}) {
-  final items = (raw ?? [])
+List<HomeFeedItem> feedItemsFrom(List? raw) {
+  return (raw ?? [])
       .whereType<Map>()
       .map((e) => HomeFeedItem.fromJson(Map<String, dynamic>.from(e)))
       .where((e) => e.title.trim().isNotEmpty || (e.imageUrl ?? '').isNotEmpty || e.readInApp)
       .toList();
-  return items.isEmpty ? fallback : items;
 }
 
-List<HomeFeedItem> nearbyActivitiesFrom(List? raw) {
-  return feedItemsFrom(raw, fallback: dummyNearbyActivities);
-}
+List<HomeFeedItem> nearbyActivitiesFrom(List? raw) => feedItemsFrom(raw);
 
-List<UpcomingEvent> upcomingEventsFrom(List? raw, {bool useFallback = false, int? limit}) {
+List<UpcomingEvent> upcomingEventsFrom(List? raw, {int? limit}) {
   final items = (raw ?? [])
       .whereType<Map>()
       .map((e) => UpcomingEvent.fromJson(Map<String, dynamic>.from(e)))
@@ -307,22 +271,5 @@ List<UpcomingEvent> upcomingEventsFrom(List? raw, {bool useFallback = false, int
     if (aStamp != null && bStamp != null) return bStamp.compareTo(aStamp);
     return 0;
   });
-  if (items.isEmpty) {
-    final fallback = useFallback ? upcomingEvents : const <UpcomingEvent>[];
-    return limit == null ? fallback : fallback.take(limit).toList();
-  }
   return limit == null ? items : items.take(limit).toList();
 }
-
-Map<String, dynamic> defaultHomeFeed() => {
-      'recentVideos': recentVideos.map((e) => e.toJson()).toList(),
-      'recentBlogs': recentBlogs.map((e) => e.toJson()).toList(),
-      'upcomingEvents': upcomingEvents.map((e) => e.toJson()).toList(),
-      'nearbyActivities': dummyNearbyActivities
-          .map((e) => {'id': e.title, 'title': e.title, 'place': e.source, 'imageUrl': e.imageUrl})
-          .toList(),
-      'tasksDueToday': [
-        {'id': 't1', 'title': 'Submit booth committee list', 'detail': 'From Mandal President', 'dueAt': DateTime.now().toIso8601String()},
-        {'id': 't2', 'title': 'Griha sampark · 50 homes', 'detail': '30 done', 'dueAt': DateTime.now().toIso8601String()},
-      ],
-    };

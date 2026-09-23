@@ -1,10 +1,6 @@
 import '../constants/api.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../constants/endpoints.dart';
 
-const _defaultStorageCdn = 'https://rentfoxxy-media.b-cdn.net';
-const _defaultStreamCdn = 'https://vz-8625e1d3-3b3.b-cdn.net';
-const _defaultStreamEmbed = 'https://iframe.mediadelivery.net';
-const _defaultStreamLibraryId = '750289';
 final _uuid = RegExp(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}');
 
 bool isHttpUrl(String? value) {
@@ -17,33 +13,13 @@ bool isHlsUrl(String? value) {
   return text.contains('.m3u8');
 }
 
-String? _env(String key) {
-  try {
-    return dotenv.maybeGet(key)?.trim();
-  } catch (_) {
-    return null;
-  }
-}
+String bunnyStorageCdn() => _trimSlash(Media.storageCdn);
 
-String bunnyStorageCdn() {
-  final value = _env('BUNNY_STORAGE_CDN');
-  return _trimSlash(value == null || value.isEmpty ? _defaultStorageCdn : value);
-}
+String bunnyStreamCdn() => _trimSlash(Media.streamCdn);
 
-String bunnyStreamCdn() {
-  final value = _env('BUNNY_STREAM_CDN');
-  return _trimSlash(value == null || value.isEmpty ? _defaultStreamCdn : value);
-}
+String bunnyStreamEmbedOrigin() => _trimSlash(Media.streamEmbed);
 
-String bunnyStreamEmbedOrigin() {
-  final value = _env('BUNNY_STREAM_EMBED');
-  return _trimSlash(value == null || value.isEmpty ? _defaultStreamEmbed : value);
-}
-
-String bunnyStreamLibraryId() {
-  final value = _env('BUNNY_STREAM_LIBRARY_ID');
-  return (value == null || value.isEmpty) ? _defaultStreamLibraryId : value;
-}
+String bunnyStreamLibraryId() => Media.streamLibraryId;
 
 bool _isStorageObject(String value) {
   return value.contains('/posts/') ||

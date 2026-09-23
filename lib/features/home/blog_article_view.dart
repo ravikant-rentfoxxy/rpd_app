@@ -4,7 +4,9 @@ import 'package:get/get.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/open_url.dart';
 import '../../data/models/home_feed.dart';
+import 'content_vote_bar.dart';
 import 'home_widgets.dart';
+import '../../core/widgets/ui.dart';
 
 /// Reads a blog written in the admin portal. Link-only blogs never reach here —
 /// [openHomeFeedItem] sends those straight to the browser.
@@ -20,17 +22,7 @@ class BlogArticleView extends StatelessWidget {
     final hasLink = blog.url.trim().isNotEmpty;
     return Scaffold(
       backgroundColor: HomeColors.paper,
-      appBar: AppBar(
-        backgroundColor: HomeColors.navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: Text('recent_blogs'.tr, style: const TextStyle(fontWeight: FontWeight.w500)),
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: HomeColors.navy,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
-        ),
-      ),
+      appBar: OrganicAppBar(title: 'recent_blogs'.tr),
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
@@ -70,6 +62,8 @@ class BlogArticleView extends StatelessWidget {
                     label: Text('open_link'.tr),
                   ),
                 ],
+                const SizedBox(height: 22),
+                ContentVoteBar(item: blog),
               ],
             ),
           ),

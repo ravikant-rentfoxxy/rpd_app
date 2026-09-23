@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
+import 'iro_header.dart';
 
 class PartyMark extends StatelessWidget {
   const PartyMark({super.key, this.size = 62, this.onBrand = false});
@@ -46,11 +47,17 @@ class AppCard extends StatelessWidget {
       CardTone.warn => AppColors.warnBg,
       CardTone.bad => AppColors.badBg,
     };
+    // The page is white, so a plain card needs a rule and a lift to read at all.
+    // Tinted tones already separate themselves by colour.
+    final plain = tone == CardTone.plain;
     return Padding(
       padding: margin ?? const EdgeInsets.only(bottom: 10),
       child: Material(
         color: bg,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpace.cardRadius)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSpace.cardRadius),
+          side: plain ? const BorderSide(color: AppColors.rule) : BorderSide.none,
+        ),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(AppSpace.cardRadius),
@@ -83,14 +90,54 @@ class CardTitle extends StatelessWidget {
 }
 
 class PrimaryButton extends StatelessWidget {
-  const PrimaryButton(this.label, {super.key, required this.onTap, this.enabled = true, this.ghost = false});
+  const PrimaryButton(
+    this.label, {
+    super.key,
+    required this.onTap,
+    this.enabled = true,
+    this.ghost = false,
+    this.gradient = Iro.headerGradient,
+  });
   final String label;
   final VoidCallback? onTap;
   final bool enabled;
   final bool ghost;
 
+  /// The fill. Every primary action carries the same forest-to-green gradient
+  /// as the create button in the tab bar, so the one thing to press on a screen
+  /// looks the same wherever a member meets it. Pass null for the flat brand
+  /// colour. Ignored while disabled, which stays grey, and by [ghost].
+  final Gradient? gradient;
+
   @override
   Widget build(BuildContext context) {
+    if (gradient != null && enabled && !ghost) {
+      final radius = BorderRadius.circular(999);
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: gradient,
+          borderRadius: radius,
+          boxShadow: const [BoxShadow(color: Color(0x5915633A), blurRadius: 16, offset: Offset(0, 8))],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: radius,
+            child: SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: Center(
+                child: Text(
+                  label,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return SizedBox(
       width: double.infinity,
       height: 50,
@@ -505,7 +552,10 @@ class AppSearchSelect extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 16,
+                        // 16 left the value larger than AppField's 14 beside it,
+                        // and clipped long names in a half-width select.
+                        fontSize: verifyStyle ? 14 : 16,
+                        fontWeight: verifyStyle ? FontWeight.w600 : FontWeight.normal,
                         color: name == null ? (verifyStyle ? const Color(0xFFB3ACB8) : AppColors.ink4) : AppColors.ink,
                       ),
                     ),
@@ -772,6 +822,45 @@ class _ChoiceChip extends StatelessWidget {
   }
 }
 
+/// A stand-in caret for the fields that hide their TextField behind painted
+/// text. Without it there is nothing on screen to say where typing will land.
+class _BlinkingCaret extends StatefulWidget {
+  const _BlinkingCaret({required this.height});
+  final double height;
+
+  @override
+  State<_BlinkingCaret> createState() => _BlinkingCaretState();
+}
+
+class _BlinkingCaretState extends State<_BlinkingCaret> with SingleTickerProviderStateMixin {
+  late final AnimationController _blink;
+
+  @override
+  void initState() {
+    super.initState();
+    _blink = AnimationController(vsync: this, duration: const Duration(milliseconds: 550))
+      ..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _blink.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _blink,
+      child: Container(
+        width: 2,
+        height: widget.height,
+        decoration: BoxDecoration(color: HomeColors.orange, borderRadius: BorderRadius.circular(1)),
+      ),
+    );
+  }
+}
+
 class LoginMobileField extends StatefulWidget {
   const LoginMobileField({
     super.key,
@@ -835,6 +924,14 @@ class _LoginMobileFieldState extends State<LoginMobileField> {
                 children: [
                   const TextSpan(text: '+91 ', style: TextStyle(color: AppColors.ink, letterSpacing: 0.4)),
                   TextSpan(text: digits, style: const TextStyle(color: AppColors.ink)),
+                  if (_focus.hasFocus && !widget.readOnly)
+                    const WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 1),
+                        child: _BlinkingCaret(height: 22),
+                      ),
+                    ),
                   TextSpan(text: remaining, style: const TextStyle(color: Color(0xFFC8C2B8), fontWeight: FontWeight.w500)),
                 ],
               ),
@@ -929,15 +1026,17 @@ class _OtpBoxesState extends State<OtpBoxes> {
                       ),
                     ),
                     alignment: Alignment.center,
-                    child: Text(
-                      digit,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.ink,
-                        height: 1,
-                      ),
-                    ),
+                    child: digit.isEmpty && isActive
+                        ? const _BlinkingCaret(height: 24)
+                        : Text(
+                            digit,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.ink,
+                              height: 1,
+                            ),
+                          ),
                   );
                 }),
               ),
@@ -1055,44 +1154,98 @@ class OrganicAppBar extends StatelessWidget implements PreferredSizeWidget {
   const OrganicAppBar({
     super.key,
     required this.title,
+    this.subtitle,
     this.actions,
-    this.leading,
+    this.trailing,
     this.automaticallyImplyLeading = true,
+    this.bottom,
+    this.onBack,
   });
 
   final String title;
+
+  /// Sits under the title. Left null, the bar falls back to the member's own
+  /// region line, the way the Home bar reads.
+  final String? subtitle;
   final List<Widget>? actions;
-  final Widget? leading;
+
+  /// A single widget for the right-hand slot, where [actions] would go. It was
+  /// called `leading` and sat here all along, which read as "left" and put a
+  /// second back arrow on the wrong side of Create post.
+  final Widget? trailing;
   final bool automaticallyImplyLeading;
 
+  /// A tab strip or filter row carried under the pill, on the mint rather than
+  /// inside the green — the pill keeps its shape.
+  final PreferredSizeWidget? bottom;
+
+  /// Replaces what Back does. Passing one implies there is a way back, even on
+  /// a screen reached by replacing the stack.
+  final VoidCallback? onBack;
+
+  /// The bar's own height, edge to edge. A PreferredSizeWidget has to state
+  /// this up front, so the content below is held to it rather than trusted to
+  /// fit — an action with a stock 48px tap target would otherwise burst it.
+  static const double _bar = 64;
+
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight + 8);
+  Size get preferredSize => Size.fromHeight(_bar + (bottom?.preferredSize.height ?? 0));
+
+  /// Callers pass ordinary buttons, which claim a 48px tap target by default
+  /// and would push the row past [_bar]. Shrink-wrapping them keeps the bar its
+  /// stated height, and the dark default colour keeps them legible now that the
+  /// field is light.
+  Widget _actions(BuildContext context) {
+    final theme = Theme.of(context);
+    return Theme(
+      data: theme.copyWith(
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        iconTheme: theme.iconTheme.copyWith(color: Iro.forest),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: Iro.green,
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+        iconButtonTheme: IconButtonThemeData(
+          style: IconButton.styleFrom(
+            foregroundColor: Iro.forest,
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: actions!),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: HomeColors.navy,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
-      ),
-      child: AppBar(
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        shadowColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        automaticallyImplyLeading: automaticallyImplyLeading,
-        leading: leading,
-        title: Text(
-          title,
-          style: GoogleFonts.bricolageGrotesque(fontSize: 24, fontWeight: FontWeight.w600, color: Colors.white),
-        ),
-        actions: actions,
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: HomeColors.navy,
-          statusBarIconBrightness: Brightness.light,
-          statusBarBrightness: Brightness.dark,
+    // The status bar now sits on mint paper rather than on a green field, so
+    // its icons have to go dark.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: iroOverlay,
+      child: Material(
+        color: iroHeaderSurface,
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: _bar,
+                child: IroPageBar(
+                  title: title,
+                  subtitle: subtitle,
+                  showBack: onBack != null || (automaticallyImplyLeading && Navigator.of(context).canPop()),
+                  onBack: onBack,
+                  action: actions == null || actions!.isEmpty ? trailing : _actions(context),
+                ),
+              ),
+              if (bottom != null) bottom!,
+            ],
+          ),
         ),
       ),
     );
@@ -1192,46 +1345,17 @@ class VerificationAppBar extends StatelessWidget implements PreferredSizeWidget 
   final VoidCallback? onBack;
 
   @override
-  Size get preferredSize => Size.fromHeight(step == null ? kToolbarHeight : 72);
+  Size get preferredSize => const Size.fromHeight(78);
 
   @override
   Widget build(BuildContext context) {
-    return AppBar(
-      backgroundColor: VerifyColors.deep,
-      foregroundColor: Colors.white,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      toolbarHeight: step == null ? kToolbarHeight : 72,
-      iconTheme: const IconThemeData(color: Colors.white),
-      actionsIconTheme: const IconThemeData(color: Colors.white),
-      automaticallyImplyLeading: onBack == null,
-      leading: onBack == null
-          ? null
-          : IconButton(
-              icon: const Icon(Icons.arrow_back_rounded),
-              tooltip: 'Back',
-              onPressed: onBack,
-            ),
-      title: step == null
-          ? Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20))
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
-                const SizedBox(height: 2),
-                Text(
-                  step!,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.65)),
-                ),
-              ],
-            ),
-      titleSpacing: 4,
+    // The same floating pill every other screen wears; [step] rides in the
+    // subtitle slot where the region line usually goes.
+    return OrganicAppBar(
+      title: title,
+      subtitle: step,
       actions: actions,
-      systemOverlayStyle: const SystemUiOverlayStyle(
-        statusBarColor: VerifyColors.deep,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
-      ),
+      onBack: onBack,
     );
   }
 }
