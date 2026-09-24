@@ -6,9 +6,19 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/api_error.dart';
 import '../../core/widgets/empty_card.dart';
 import '../../core/widgets/ui.dart';
+import 'package:share_plus/share_plus.dart';
+import '../../core/constants/endpoints.dart';
+import '../../core/widgets/flash.dart';
+import '../../core/widgets/iro_ui.dart';
+import '../session/session_controller.dart';
 import 'leaders_api.dart';
+import 'invite_api.dart';
 
-/// Step-by-step chain of office bearers above the member, from national down to their booth.
+/// Levels the ladder leaves out. See [_MyLeadersViewState._load].
+const _hiddenLevels = {'MANDAL', 'BOOTH'};
+
+/// Step-by-step chain of office bearers above the member, from national down to
+/// their assembly.
 class MyLeadersView extends StatefulWidget {
   const MyLeadersView({super.key});
 
@@ -18,6 +28,9 @@ class MyLeadersView extends StatefulWidget {
 
 class _MyLeadersViewState extends State<MyLeadersView> {
   List<Map<String, dynamic>> levels = const [];
+  /// Which posts this member may issue a code for. Empty for anyone without a
+  /// post above the one being offered, which keeps the action off their screen.
+  List<AssignablePost> assignable = const [];
   bool loading = true;
   String? error;
 
@@ -34,8 +47,19 @@ class _MyLeadersViewState extends State<MyLeadersView> {
     });
     try {
       final rows = await fetchMyLeaders();
+      // Mandal and booth are left off the ladder: there are none on the
+      // register, so both rungs only ever read "No one appointed yet" with no
+      // area beside them. Drop this filter to bring them back once booths
+      // exist — the server still sends them.
+      final shown = rows.where((row) => !_hiddenLevels.contains('${row['level'] ?? ''}')).toList();
+      // Best effort: the ladder is the point, and an ordinary member is
+      // expected to be refused here.
+      final posts = await fetchAssignablePosts().catchError((_) => <AssignablePost>[]);
       if (!mounted) return;
-      setState(() => levels = rows);
+      setState(() {
+        levels = shown;
+        assignable = posts;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => error = apiErrorMessage(e));
@@ -88,12 +112,17 @@ class _MyLeadersViewState extends State<MyLeadersView> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Text(
-                    'my_leaders_intro'.trFallback('Office bearers who lead your area, from the top down to your booth.'),
+                    'my_leaders_intro'.trFallback('Office bearers who lead your area, from the top down to your constituency.'),
                     style: const TextStyle(fontSize: 13, color: HomeColors.muted),
                   ),
                 ),
                 for (var i = 0; i < levels.length; i++)
-                  _LevelStep(level: levels[i], step: i + 1, isLast: i == levels.length - 1),
+                  _LevelStep(
+                    level: levels[i],
+                    step: i + 1,
+                    isLast: i == levels.length - 1,
+                    assignable: assignable,
+                  ),
               ],
             ),
           );
@@ -104,11 +133,24 @@ class _MyLeadersViewState extends State<MyLeadersView> {
 }
 
 class _LevelStep extends StatelessWidget {
-  const _LevelStep({required this.level, required this.step, required this.isLast});
+  const _LevelStep({
+    required this.level,
+    required this.step,
+    required this.isLast,
+    this.assignable = const [],
+  });
 
   final Map<String, dynamic> level;
   final int step;
   final bool isLast;
+  final List<AssignablePost> assignable;
+
+  /// The posts at this level this member is allowed to hand out. The server
+  /// decides which posts; this only sorts them onto the right rung.
+  List<AssignablePost> get _offerable {
+    final code = '${level['level'] ?? ''}';
+    return assignable.where((p) => levelOfPost(p.post) == code).toList();
+  }
 
   String get _levelTitle {
     final code = '${level['level'] ?? ''}';
@@ -202,6 +244,12 @@ class _LevelStep extends StatelessWidget {
                     )
                   else
                     for (final leader in leaders) _LeaderTile(leader: leader),
+                  // Under the names rather than in place of them: a level can
+                  // have someone in post and still have room for another.
+                  if (_offerable.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    _InviteAction(posts: _offerable, areaName: area),
+                  ],
                 ],
               ),
             ),
@@ -272,6 +320,132 @@ class _LeaderTile extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Hands out a code for a post at this level.
+///
+/// Only drawn when the server says this member may issue one, so the button
+/// appearing is itself the answer to "am I senior enough". Minting and sharing
+/// are one press: a code nobody was given is just a row in a table.
+class _InviteAction extends StatefulWidget {
+  const _InviteAction({required this.posts, required this.areaName});
+
+  final List<AssignablePost> posts;
+  final String areaName;
+
+  @override
+  State<_InviteAction> createState() => _InviteActionState();
+}
+
+class _InviteActionState extends State<_InviteAction> {
+  bool busy = false;
+
+  Future<void> _run() async {
+    if (busy) return;
+    final post = widget.posts.length == 1 ? widget.posts.first : await _pick();
+    if (post == null || !mounted) return;
+
+    setState(() => busy = true);
+    try {
+      // The area comes from the sharer's own profile: this ladder is their own
+      // chain, so their district is the district, their assembly the assembly.
+      final member = Get.isRegistered<SessionController>() ? Get.find<SessionController>().member : null;
+      final areaId = areaIdFor(member, post.requires);
+      if (post.requires != null && areaId == null) {
+        // Only reachable if the server starts asking for a scope the profile
+        // does not carry; fetchAssignablePosts drops the known ones already.
+        flash('Error', 'refer_no_area'.trFallback('Add this area to your profile first.'));
+        return;
+      }
+      final invite = await createPostInvite(
+        post: post.post,
+        // Only sent when the server asks for one — a district post takes the
+        // issuer's own district, and passing an id it did not ask for is how
+        // an invite ends up scoped to the wrong place.
+        scopeField: post.requires,
+        areaId: areaId,
+      );
+      if (!mounted) return;
+      await _share(invite);
+    } catch (e) {
+      flash('Error', apiErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  /// Which post, when a level holds more than one.
+  Future<AssignablePost?> _pick() {
+    return Get.bottomSheet<AssignablePost>(
+      SafeArea(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          decoration: const BoxDecoration(
+            color: Iro.surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(color: Iro.line, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text('refer_pick_post'.trFallback('Which post?'), style: iroDisplay(size: 16)),
+              const SizedBox(height: 10),
+              for (final post in widget.posts)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.badge_outlined, size: 20, color: Iro.green),
+                  title: Text(post.title, style: iroLabel(size: 13.5, weight: FontWeight.w700)),
+                  onTap: () => Get.back(result: post),
+                ),
+            ],
+          ),
+        ),
+      ),
+      isScrollControlled: true,
+    );
+  }
+
+  Future<void> _share(PostInvite invite) async {
+    final where = invite.where.isEmpty ? widget.areaName : invite.where;
+    final text = [
+      'refer_post_intro'.trParams({'post': invite.postTitle, 'where': where}),
+      'refer_share_code'.trParams({'code': invite.code}),
+      ExternalLinks.playStore,
+    ].join('\n\n');
+
+    final box = context.findRenderObject() as RenderBox?;
+    await SharePlus.instance.share(
+      ShareParams(
+        text: text,
+        subject: invite.postTitle,
+        sharePositionOrigin: box == null ? Rect.zero : box.localToGlobal(Offset.zero) & box.size,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = widget.posts.length == 1
+        ? 'refer_invite_post'.trParams({'post': widget.posts.first.title})
+        : 'refer_invite'.trFallback('Invite someone');
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: IroGhostButton(
+        label: busy ? '…' : label,
+        icon: Icons.person_add_alt_1_rounded,
+        tone: Iro.green,
+        onTap: busy ? null : _run,
       ),
     );
   }

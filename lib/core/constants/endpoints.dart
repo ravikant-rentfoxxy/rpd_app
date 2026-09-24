@@ -75,4 +75,9 @@ class ExternalLinks {
 
   /// Share a post summary.
   static String shareOnX(String text) => 'https://x.com/intent/post?text=${Uri.encodeComponent(text)}';
+
+  /// Where someone handed a referral code goes to get the app. The id is the
+  /// Android applicationId in build.gradle.kts; changing one without the other
+  /// sends people to a listing that does not exist.
+  static const playStore = 'https://play.google.com/store/apps/details?id=in.rpd.rpd_app';
 }

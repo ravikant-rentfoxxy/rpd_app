@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/constants/org_hierarchy.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/app_log.dart';
+import '../../core/utils/invite_code.dart';
 import '../../core/utils/local_image.dart';
 import '../session/session_controller.dart';
 import '../../core/widgets/flash.dart';
@@ -336,7 +337,9 @@ class MembershipCardFace extends StatelessWidget {
     final name = _text(member['fullName']);
     final id = displayMemberId(member);
     final mobile = _mobileNumber(member['mobile']);
-    final referral = _inviteCode(member);
+    // The helper returns empty when there is nothing to derive a code from;
+    // the card has always shown a dash there rather than a blank field.
+    final referral = inviteCodeOf(member).isEmpty ? '—' : inviteCodeOf(member);
     final post = postLabelKey(member['post'] as String?).tr;
     final boothCode = _text(booth?['code']);
     final area = [_firstText([member['districtName'], booth?['districtName']]), _text(booth?['mandalName'])].where((e) => e.isNotEmpty).join(', ');
@@ -812,23 +815,6 @@ String _mobileNumber(Object? raw) {
   return digits.length > 10 ? digits.substring(digits.length - 10) : digits;
 }
 
-String _inviteCode(Map<String, dynamic> member) {
-  final stored = _text(member['inviteCode']);
-  if (stored.isNotEmpty) return stored;
-  final source = _text(member['membershipNumber']).isNotEmpty ? _text(member['membershipNumber']) : _text(member['id']);
-  if (source.isEmpty) return '—';
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  var hash = 0;
-  for (final unit in source.codeUnits) {
-    hash = (hash * 31 + unit) & 0xFFFFFFFF;
-  }
-  final chars = StringBuffer();
-  for (var i = 0; i < 8; i++) {
-    chars.write(alphabet[hash % alphabet.length]);
-    hash = (hash * 1664525 + 1013904223) & 0xFFFFFFFF;
-  }
-  return chars.toString();
-}
 
 String _cleanAssembly(String raw) {
   final text = raw.trim();

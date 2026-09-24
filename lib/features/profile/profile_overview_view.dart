@@ -8,6 +8,7 @@ import '../../core/widgets/ui.dart';
 import '../card/membership_card_view.dart';
 import '../join/join_chrome.dart';
 import '../session/session_controller.dart';
+import '../refer/refer_card.dart';
 
 class ProfileOverviewView extends StatelessWidget {
   const ProfileOverviewView({super.key});
@@ -37,13 +38,16 @@ class ProfileOverviewView extends StatelessWidget {
         final member = session.member ?? {};
         final name = '${member['fullName'] ?? ''}'.trim();
         final memberId = displayMemberId(member);
+        // The number sits in the referral section once there is one, so it is
+        // only printed under the name while that section is hidden.
+        final showReferral = referralVisible(member);
         return ListView(
           padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
           children: [
             Center(child: _Avatar(member: member, complete: session.canUseMemberActions)),
             const SizedBox(height: 12),
             DisplayText(name.isEmpty ? '—' : name, size: 20, center: true),
-            if (memberId.trim().isNotEmpty) ...[
+            if (!showReferral && memberId.trim().isNotEmpty) ...[
               const SizedBox(height: 3),
               Text(
                 memberId,
@@ -51,7 +55,19 @@ class ProfileOverviewView extends StatelessWidget {
                 style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: HomeColors.muted),
               ),
             ],
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
+            // A section of its own, hidden until the profile is complete, so it
+            // reads as what the member gets for finishing rather than as an
+            // empty row.
+            if (showReferral) ...[
+              _SectionTitle(
+                'refer_friend',
+                fallback: 'Refer a friend',
+                trailing: ReferralShareButton(member: member),
+              ),
+              _InfoCard(children: [ReferralRow(member: member)]),
+              const SizedBox(height: 18),
+            ],
             const _SectionTitle('profile_details', fallback: 'Your details'),
             _InfoCard(
               children: [
@@ -60,12 +76,6 @@ class ProfileOverviewView extends StatelessWidget {
                   group: _RowGroup.identity,
                   label: 'full_name'.tr,
                   value: name,
-                ),
-                _Row(
-                  icon: Icons.badge_outlined,
-                  group: _RowGroup.identity,
-                  label: 'card_member_id'.trFallback('Member ID'),
-                  value: memberId,
                 ),
                 _Row(
                   icon: Icons.phone_outlined,
@@ -253,15 +263,21 @@ class _Avatar extends StatelessWidget {
 }
 
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.translationKey, {required this.fallback});
+  const _SectionTitle(this.translationKey, {required this.fallback, this.trailing});
   final String translationKey;
   final String fallback;
 
+  /// An action for the section, parked on the right of its heading.
+  final Widget? trailing;
+
   @override
   Widget build(BuildContext context) {
+    final title = DisplayText(translationKey.trFallback(fallback), size: 17);
     return Padding(
       padding: const EdgeInsets.only(left: 2, bottom: 10),
-      child: DisplayText(translationKey.trFallback(fallback), size: 17),
+      child: trailing == null
+          ? title
+          : Row(children: [Expanded(child: title), trailing!]),
     );
   }
 }

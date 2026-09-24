@@ -15,6 +15,7 @@ import '../home/home_widgets.dart';
 import '../join/join_chrome.dart';
 import '../session/session_controller.dart';
 import 'community_api.dart';
+import '../refer/refer_card.dart';
 
 /// Community is the district talking to itself: how it is doing against the
 /// state, the stories coming off the ground, and what was fixed since
@@ -114,7 +115,11 @@ class _CommunityViewState extends State<CommunityView> {
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: [
                       _DistrictBanner(banner: data.banner),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 14),
+                      // Above the feed: bringing someone in is the one thing a
+                      // member can do here that does not depend on the district
+                      // having posted anything.
+                      const ReferFriendCard(),
                       IroSegmented(
                         items: ['all_feed'.tr, 'short_videos'.tr, 'field_stories'.tr, 'grassroots_updates'.tr],
                         index: _Filter.values.indexOf(filter),

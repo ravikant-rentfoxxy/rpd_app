@@ -24,7 +24,7 @@ bool _crashlyticsReady = false;
 /// Comment out the `ApiConfig.use(backend)` call below to let the build decide
 /// instead: `--dart-define=APP_ENV=...`, or prod for a release build and local
 /// for anything else.
-const backend = AppEnv.local;
+const backend = AppEnv.prod;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

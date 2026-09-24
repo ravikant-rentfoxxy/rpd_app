@@ -6,6 +6,7 @@ import '../../core/widgets/language_dropdown.dart';
 import '../../core/utils/api_error.dart';
 import '../../core/utils/app_log.dart';
 import '../../core/widgets/empty_card.dart';
+import '../../core/widgets/iro_ui.dart';
 import '../../core/widgets/ui.dart';
 import '../../data/local/hive_service.dart';
 import '../../data/remote/api_client.dart';
@@ -45,6 +46,7 @@ class MembersView extends StatelessWidget {
   Widget build(BuildContext context) {
     final listController = Get.put(MembersListController());
     return Scaffold(
+      backgroundColor: Iro.mint,
       appBar: OrganicAppBar(
         title: 'my_recruits'.tr,
         actions: const [
@@ -59,27 +61,43 @@ class MembersView extends StatelessWidget {
         final counts = Map<String, dynamic>.from(data.value?['counts'] as Map? ?? {});
         final list = (data.value?['recruits'] as List?) ?? [];
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
           children: [
             Row(
               children: [
-                _c('${counts['verified'] ?? 0}', 'verified'.tr, HomeColors.navyMid),
-                _c('${counts['pending'] ?? 0}', 'pending'.tr, HomeColors.orange),
-                _c('${counts['rejected'] ?? 0}', 'rejected'.tr, HomeColors.muted),
+                _Count(
+                  value: '${counts['verified'] ?? 0}',
+                  label: 'verified'.tr,
+                  tone: Iro.green,
+                  icon: Icons.verified_rounded,
+                ),
+                const SizedBox(width: 10),
+                _Count(
+                  value: '${counts['pending'] ?? 0}',
+                  label: 'pending'.tr,
+                  tone: Iro.gold,
+                  icon: Icons.hourglass_empty_rounded,
+                ),
+                const SizedBox(width: 10),
+                _Count(
+                  value: '${counts['rejected'] ?? 0}',
+                  label: 'rejected'.tr,
+                  tone: Iro.alert,
+                  icon: Icons.block_rounded,
+                ),
               ],
             ),
-            const SizedBox(height: 8),
-            PrimaryButton(
-              'add_member'.tr,
-              // The same fill as the create button in the tab bar — this is the
-              // one thing this screen exists to do.
-              gradient: Iro.headerGradient,
+            const SizedBox(height: 14),
+            // The one thing this screen exists to do.
+            IroActionButton(
+              label: 'add_member'.tr,
+              icon: Icons.person_add_alt_1_rounded,
               onTap: () {
                 if (!Get.find<SessionController>().guardMemberActions()) return;
                 Get.toNamed(Routes.addMember);
               },
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 18),
             if (list.isEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 20, bottom: 12),
@@ -88,40 +106,121 @@ class MembersView extends StatelessWidget {
                   title: 'members'.tr,
                   sub: 'members_more_sub'.tr,
                 ),
+              )
+            else ...[
+              IroSectionHeading(
+                'my_recruits'.tr,
+                top: 0,
+                trailing: 'recruits_count'.trParams({'n': '${list.length}'}),
               ),
-            ...list.map((e) {
-              final m = Map<String, dynamic>.from(e as Map);
-              final status = m['status'] as String? ?? 'PENDING';
-              final tone = switch (status) {
-                'VERIFIED' => PillTone.ok,
-                'REJECTED' => PillTone.bad,
-                _ => PillTone.warn,
-              };
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: AvatarCircle(((m['fullName'] as String? ?? 'M').split(' ').map((p) => p[0]).take(2).join())),
-                title: Text(m['fullName'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: MonoText('${m['booth']?['code'] ?? ''} · ${status.toLowerCase()}'),
-                trailing: Pill(status, tone: tone),
-              );
-            }),
+              for (final e in list) RecruitCard(member: Map<String, dynamic>.from(e as Map)),
+            ],
           ],
         );
       }),
     );
   }
+}
 
-  Widget _c(String n, String l, Color c) => Expanded(
-        child: Container(
-          margin: const EdgeInsets.only(right: 8),
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-          decoration: BoxDecoration(color: AppColors.card, borderRadius: BorderRadius.circular(20)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            DisplayText(n, size: 24, color: c),
-            Text(l, style: const TextStyle(fontSize: 11, color: AppColors.ink3)),
-          ]),
+/// One of the three figures across the top.
+class _Count extends StatelessWidget {
+  const _Count({required this.value, required this.label, required this.tone, required this.icon});
+  final String value;
+  final String label;
+  final Color tone;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: IroCard(
+        margin: EdgeInsets.zero,
+        padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: tone),
+            const SizedBox(height: 7),
+            Text(value, style: iroDisplay(size: 22, color: tone)),
+            const SizedBox(height: 1),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: iroLabel(size: 11, color: Iro.muted, weight: FontWeight.w600),
+            ),
+          ],
         ),
-      );
+      ),
+    );
+  }
+}
+
+/// A member this recruiter signed up.
+class RecruitCard extends StatelessWidget {
+  const RecruitCard({super.key, required this.member});
+  final Map<String, dynamic> member;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = '${member['fullName'] ?? ''}'.trim();
+    final status = '${member['status'] ?? 'PENDING'}'.toUpperCase();
+    final number = '${member['membershipNumber'] ?? ''}'.trim();
+    final booth = '${(member['booth'] as Map?)?['name'] ?? ''}'.trim();
+    final place = [
+      if (booth.isNotEmpty) booth,
+      '${member['districtName'] ?? (member['district'] as Map?)?['name'] ?? ''}'.trim(),
+    ].where((e) => e.isNotEmpty).join(' · ');
+
+    final (tone, wash, label) = switch (status) {
+      'VERIFIED' => (Iro.green, Iro.wash, 'verified'.tr),
+      'REJECTED' => (Iro.alert, Iro.alertWash, 'rejected'.tr),
+      _ => (Iro.gold, Iro.goldWash, 'pending'.tr),
+    };
+
+    return IroCard(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+      child: Row(
+        children: [
+          AvatarCircle(
+            name.isEmpty ? '?' : name.split(RegExp(r'\s+')).take(2).map((p) => p[0]).join().toUpperCase(),
+            imageUrl: member['photoUrl'] as String?,
+            radius: 20,
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  name.isEmpty ? '—' : name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: iroDisplay(size: 14.5),
+                ),
+                // The membership number, or where they are — never the status,
+                // which the pill beside it already says.
+                if (number.isNotEmpty || place.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    number.isNotEmpty ? number : place,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: iroLabel(size: 11, color: Iro.muted, weight: FontWeight.w600),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          IroChip(label, dense: true, size: 9.5, dot: true, fg: tone, bg: wash),
+        ],
+      ),
+    );
+  }
 }
 
 class AddMemberView extends StatelessWidget {

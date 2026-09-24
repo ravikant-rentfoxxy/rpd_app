@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/api_error.dart';
 import '../../core/widgets/empty_card.dart';
+import '../../core/widgets/iro_ui.dart';
 import '../../core/widgets/ui.dart';
 import '../home/home_widgets.dart';
 import '../join/join_chrome.dart';
@@ -103,7 +104,11 @@ class _RankSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-      decoration: BoxDecoration(color: HomeColors.navy, borderRadius: BorderRadius.circular(24)),
+      decoration: BoxDecoration(
+        gradient: Iro.headerGradient,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: iroCardShadow,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -137,7 +142,7 @@ class _RankSummary extends StatelessWidget {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(color: HomeColors.navyMid, borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: const Color(0x33FFFFFF), borderRadius: BorderRadius.circular(16)),
         child: Column(
           children: [
             Text(label, style: const TextStyle(fontSize: 11, color: HomeColors.navyMuted, fontWeight: FontWeight.w600)),
@@ -175,17 +180,11 @@ class _BoardList extends StatelessWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           if (name.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Text(name, style: homeTitleStyle(size: 16)),
-            ),
-          if (rank != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(
-                'rank_of'.trParams({'rank': '$rank', 'size': '$total'}),
-                style: const TextStyle(color: HomeColors.muted, fontWeight: FontWeight.w600),
-              ),
+            IroSectionHeading(
+              name,
+              top: 0,
+              trailing: rank == null ? null : 'rank_of'.trParams({'rank': '$rank', 'size': '$total'}),
+              leading: const Icon(Icons.emoji_events_rounded, size: 17, color: Iro.gold),
             ),
           if (missing)
             Padding(
@@ -206,7 +205,7 @@ class _BoardList extends StatelessWidget {
           else
             ...items.map((raw) {
               final row = Map<String, dynamic>.from(raw as Map);
-              return _RankRow(row: row);
+              return RankRow(row: row);
             }),
         ],
       ),
@@ -214,61 +213,91 @@ class _BoardList extends StatelessWidget {
   }
 }
 
-class _RankRow extends StatelessWidget {
-  const _RankRow({required this.row});
+/// One place on the board.
+///
+/// The top three carry a medal rather than a bare number, and the member's own
+/// row is ringed so they can find themselves without reading every name.
+class RankRow extends StatelessWidget {
+  const RankRow({super.key, required this.row});
   final Map<String, dynamic> row;
+
+  static const _medals = {1: Iro.gold, 2: Color(0xFF9AA5AD), 3: Color(0xFFB07B4F)};
 
   @override
   Widget build(BuildContext context) {
-    final rank = row['rank'] as num? ?? 0;
+    final rank = (row['rank'] as num? ?? 0).toInt();
     final name = '${row['fullName'] ?? ''}'.trim();
     final tasks = row['tasksDone'] as num? ?? 0;
     final points = row['points'] as num? ?? 0;
     final mine = row['isMe'] == true;
-    final initials = name.isEmpty ? '?' : name.trim().split(RegExp(r'\s+')).take(2).map((p) => p[0]).join().toUpperCase();
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: mine ? HomeColors.peach2 : HomeColors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: mine ? HomeColors.orange : HomeColors.border),
-      ),
+    final medal = _medals[rank];
+    final initials =
+        name.isEmpty ? '?' : name.trim().split(RegExp(r'\s+')).take(2).map((p) => p[0]).join().toUpperCase();
+
+    return IroCard(
+      margin: const EdgeInsets.only(bottom: 9),
+      padding: const EdgeInsets.fromLTRB(11, 10, 12, 10),
+      color: mine ? Iro.wash : Iro.surface,
+      border: mine ? Iro.leaf : Iro.line,
       child: Row(
         children: [
           SizedBox(
-            width: 28,
-            child: Text(
-              '$rank',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: rank <= 3 ? HomeColors.orange : HomeColors.navy,
-              ),
-            ),
+            width: 30,
+            child: medal == null
+                ? Text(
+                    '$rank',
+                    textAlign: TextAlign.center,
+                    style: iroLabel(size: 13, color: Iro.muted, weight: FontWeight.w800),
+                  )
+                : Icon(Icons.workspace_premium_rounded, size: 21, color: medal),
           ),
-          const SizedBox(width: 8),
-          AvatarCircle(initials, imageUrl: row['photoUrl'] as String?, radius: 18),
-          const SizedBox(width: 10),
+          const SizedBox(width: 7),
+          AvatarCircle(initials, imageUrl: row['photoUrl'] as String?, radius: 19),
+          const SizedBox(width: 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   mine ? '$name (${'you'.trFallback('you')})' : name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700, color: HomeColors.ink),
+                  style: iroDisplay(size: 14.5),
                 ),
-                Text(
-                  'leaderboard_score'.trParams({'tasks': '$tasks', 'points': '$points'}),
-                  style: const TextStyle(fontSize: 12, color: HomeColors.muted),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    _Stat(icon: Icons.check_circle_outline_rounded, value: '$tasks'),
+                    const SizedBox(width: 11),
+                    _Stat(icon: Icons.bolt_rounded, value: '$points'),
+                  ],
                 ),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A figure with the icon that says what it counts, so the row does not have to
+/// spell out "tasks" and "points" on every line.
+class _Stat extends StatelessWidget {
+  const _Stat({required this.icon, required this.value});
+  final IconData icon;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: Iro.muted),
+        const SizedBox(width: 4),
+        Text(value, style: iroLabel(size: 11.5, color: Iro.ink2, weight: FontWeight.w700)),
+      ],
     );
   }
 }
