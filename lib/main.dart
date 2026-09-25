@@ -19,7 +19,7 @@ bool _crashlyticsReady = false;
 ///
 ///   AppEnv.local -> this Mac over Wi-Fi (see LAN_HOST in endpoints.dart)
 ///   AppEnv.dev   -> https://rpd-backend.vercel.app
-///   AppEnv.prod  -> https://iroorg.tech/api
+///   AppEnv.prod  -> https://rpd-org.in/
 ///
 /// Comment out the `ApiConfig.use(backend)` call below to let the build decide
 /// instead: `--dart-define=APP_ENV=...`, or prod for a release build and local

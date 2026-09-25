@@ -15,7 +15,7 @@ enum AppEnv {
   dev('https://rpd-backend.vercel.app'),
 
   /// Live.
-  prod('https://iroorg.tech/api');
+  prod('https://rpd-org.in/');
 
   const AppEnv(this.baseUrl);
 
@@ -23,7 +23,7 @@ enum AppEnv {
   final String baseUrl;
 
   /// The base with any trailing `/api` taken off, because the client appends
-  /// `/api/v1` — left in, prod would resolve to `https://iroorg.tech/api/api/v1`.
+  /// `/api/v1` — left in, a base ending `/api` would resolve to `/api/api/v1`.
   String get origin {
     final trimmed = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
     return trimmed.endsWith('/api') ? trimmed.substring(0, trimmed.length - 4) : trimmed;

@@ -71,6 +71,12 @@ class AppColors {
   /// Sign-in and OTP only, deliberately left out of the green retint so the two
   /// screens over `login_bg.jpg` look as they did.
   static const loginNavy = Color(0xFF1C0F4A);
+
+  /// The splash. The OS paints this before Flutter starts — it is `color:` in
+  /// the flutter_native_splash block — and the boot screen paints it again, so
+  /// the handover is invisible.
+  static const splashBackground = Colors.white;
+  static const splashNavy = Color(0xFF291668);
   static const brand = Iro.green;
   static const brandLight = Iro.greenMid;
   static const brandWash = Iro.wash;

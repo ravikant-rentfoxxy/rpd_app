@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:rpd_app/core/theme/app_colors.dart';
@@ -160,6 +162,12 @@ class _OtpViewState extends State<OtpView> {
   final code = TextEditingController();
   final loading = false.obs;
   final otpTick = 0.obs;
+  final resending = false.obs;
+  // Matches the backend's OTP_RESEND_SECONDS; a code was just sent on the
+  // mobile screen, so the countdown starts on arrival.
+  static const _resendSeconds = 30;
+  final resendIn = _resendSeconds.obs;
+  Timer? _resendTimer;
   late final String mobile;
 
   @override
@@ -167,10 +175,12 @@ class _OtpViewState extends State<OtpView> {
     super.initState();
     mobile = (Get.arguments as String?) ?? Get.find<HiveService>().draft.get('mobile') as String? ?? '';
     code.addListener(_onCodeChanged);
+    _startResendCountdown();
   }
 
   @override
   void dispose() {
+    _resendTimer?.cancel();
     code.removeListener(_onCodeChanged);
     code.dispose();
     super.dispose();
@@ -181,6 +191,31 @@ class _OtpViewState extends State<OtpView> {
     final otp = code.text.replaceAll(RegExp(r'\D'), '');
     if (otp.length == 6 && !loading.value) {
       _verify(otp);
+    }
+  }
+
+  void _startResendCountdown() {
+    _resendTimer?.cancel();
+    resendIn.value = _resendSeconds;
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      resendIn.value--;
+      if (resendIn.value <= 0) timer.cancel();
+    });
+  }
+
+  Future<void> _resend() async {
+    if (resendIn.value > 0 || resending.value || loading.value) return;
+    resending.value = true;
+    try {
+      await Get.find<SessionController>().requestOtp(mobile);
+      code.clear();
+      _startResendCountdown();
+      flash('OK', 'code_resent'.tr);
+    } catch (e, stack) {
+      AppLog.error('OTP resend failed', error: e, stack: stack, tag: 'AUTH');
+      flash('Error', apiErrorMessage(e));
+    } finally {
+      resending.value = false;
     }
   }
 
@@ -283,10 +318,37 @@ class _OtpViewState extends State<OtpView> {
                           }),
                           const SizedBox(height: 10),
                           Center(
-                            child: Text(
-                              '${'resend'.tr} · ${'sms_instead'.tr}',
-                              style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
-                            ),
+                            child: Obx(() {
+                              final seconds = resendIn.value;
+                              if (seconds > 0) {
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  child: Text(
+                                    'resend_in'.trParams({'s': '00:${seconds.toString().padLeft(2, '0')}'}),
+                                    style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13),
+                                  ),
+                                );
+                              }
+                              return TextButton(
+                                onPressed: resending.value || loading.value ? null : _resend,
+                                child: resending.value
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFEF8120)),
+                                      )
+                                    : Text(
+                                        'resend_code'.tr,
+                                        style: const TextStyle(
+                                          color: Color(0xFFEF8120),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w800,
+                                          decoration: TextDecoration.underline,
+                                          decorationColor: Color(0xFFEF8120),
+                                        ),
+                                      ),
+                              );
+                            }),
                           ),
                         ],
                       ),
