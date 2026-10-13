@@ -239,6 +239,16 @@ class ApiClient extends GetxService {
     }
   }
 
+  Future<Map<String, dynamic>> delete(String path, {Object? data}) async {
+    try {
+      final res = await dio.delete(path, data: data);
+      return Map<String, dynamic>.from(res.data as Map);
+    } on DioException catch (e) {
+      if (!_isUnauthorized(e)) printDioError(e);
+      rethrow;
+    }
+  }
+
   Future<Map<String, dynamic>> postMultipart(String path, FormData data, {ProgressCallback? onSendProgress}) async {
     try {
       final res = await dio.post(

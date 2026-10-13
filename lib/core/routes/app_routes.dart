@@ -27,6 +27,8 @@ class Routes {
   static const notifications = '/notifications';
   static const verification = '/verification';
   static const memberStatus = '/verification/status';
+  static const settings = '/app-settings';
+  static const deleteAccount = '/delete-account';
   static const apiSettings = '/settings/api';
   static const errorLog = '/settings/logs';
   static const youtubePlayer = '/video';

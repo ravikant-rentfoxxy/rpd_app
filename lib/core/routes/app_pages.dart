@@ -20,7 +20,9 @@ import '../../features/leaderboard/leaderboard_view.dart';
 import '../../features/meeting/meeting_views.dart';
 import '../../features/members/members_view.dart';
 import '../../features/settings/api_settings_view.dart';
+import '../../features/settings/delete_account_view.dart';
 import '../../features/settings/error_log_view.dart';
+import '../../features/settings/settings_view.dart';
 import '../../features/shell/shell_view.dart';
 import '../../features/sync/sync_view.dart';
 import '../../features/tasks/create_task_view.dart';
@@ -70,6 +72,8 @@ class AppPages {
     GetPage(name: Routes.notifications, page: () => const NotificationsView()),
     GetPage(name: Routes.verification, page: () => const VerificationInboxView()),
     GetPage(name: Routes.memberStatus, page: () => const MemberStatusView()),
+    GetPage(name: Routes.settings, page: () => const SettingsView()),
+    GetPage(name: Routes.deleteAccount, page: () => const DeleteAccountView()),
     GetPage(name: Routes.apiSettings, page: () => const ApiSettingsView()),
     GetPage(name: Routes.errorLog, page: () => const ErrorLogView()),
     GetPage(name: Routes.youtubePlayer, page: () => const YoutubePlayerView()),

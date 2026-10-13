@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:rpd_app/features/join/join_chrome.dart';
 import '../../core/routes/app_routes.dart';
-import '../../core/widgets/language_dropdown.dart';
 import '../../core/widgets/ui.dart';
 import '../card/membership_card_view.dart';
-import '../session/logout_dialog.dart';
 import '../session/session_controller.dart';
 
 class MoreView extends StatelessWidget {
@@ -99,14 +97,9 @@ class MoreView extends StatelessWidget {
               child: CardTitle('record_activity'.tr, sub: 'record_activity_sub'.tr),
             ),
           AppCard(
-            child: Row(
-              children: [
-                Expanded(child: CardTitle('language'.tr)),
-                const LanguageDropdown(),
-              ],
-            ),
+            onTap: () => Get.toNamed(Routes.settings),
+            child: CardTitle('settings'.tr, sub: 'settings_sub'.trFallback('Language, sign out and account')),
           ),
-          PrimaryButton('sign_out'.tr, ghost: true, onTap: showLogoutDialog),
         ],
       );
       }),

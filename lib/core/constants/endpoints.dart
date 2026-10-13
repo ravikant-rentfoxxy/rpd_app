@@ -29,8 +29,8 @@ enum AppEnv {
     return trimmed.endsWith('/api') ? trimmed.substring(0, trimmed.length - 4) : trimmed;
   }
 }
-
-const _lanHost = String.fromEnvironment('LAN_HOST', defaultValue: 'http://192.168.1.2:4000');
+//http://192.168.1.2:4000
+const _lanHost = String.fromEnvironment('LAN_HOST', defaultValue: 'http://10.169.42.196:4000');
 const _selectedEnv = String.fromEnvironment('APP_ENV');
 
 /// `--dart-define=APP_ENV=local|dev|prod` decides. Without one, a release build

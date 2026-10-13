@@ -708,6 +708,14 @@ class SessionController extends GetxController {
     }
   }
 
+  /// Deletes the member's account on the server, with their reason for leaving,
+  /// then signs out locally. The
+  /// server has already revoked every token, so there is nothing to tell it.
+  Future<void> deleteAccount(String reason) async {
+    await api.delete('/auth/me', data: {'reason': reason});
+    await signOut(notifyServer: false);
+  }
+
   Future<void> signOut({bool notifyServer = true}) async {
     if (notifyServer) unawaited(api.logoutRemote());
     api.signedOut = true;
