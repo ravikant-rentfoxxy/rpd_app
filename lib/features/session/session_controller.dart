@@ -18,6 +18,7 @@ import '../../data/remote/api_client.dart';
 import '../activity_event/activity_event_dialog.dart';
 import '../engagement/engagement_dialog.dart';
 import '../events/event_api.dart';
+import '../join/join_chrome.dart';
 import '../notifications/notifications_api.dart';
 import '../post/post_api.dart';
 import 'complete_profile_dialog.dart';
@@ -211,6 +212,10 @@ class SessionController extends GetxController {
       unawaited(Get.find<PushService>().syncToken());
     }
     openPostAuth();
+    // Signed in within the grace period after deleting the account.
+    if (data['accountRestored'] == true) {
+      flash('OK', 'account_restored'.trFallback('Welcome back! Your account and data have been restored.'));
+    }
   }
 
   bool get hasSession => !api.signedOut && (hive.accessToken?.isNotEmpty ?? false);

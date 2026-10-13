@@ -45,7 +45,7 @@ class _DeleteAccountViewState extends State<DeleteAccountView> {
     try {
       // Signing out replaces every route, this screen included.
       await Get.find<SessionController>().deleteAccount(_reason.text.trim());
-      flash('OK', 'delete_account_done'.trFallback('Your account has been deleted.'));
+      flash('OK', 'delete_account_done'.trFallback('Your account has been deleted. Sign in again within 7 days to restore it.'));
     } catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -64,13 +64,14 @@ class _DeleteAccountViewState extends State<DeleteAccountView> {
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           children: [
             const _WarningCard(),
+            const _RestoreCard(),
             IroCard(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'delete_account_removed_title'.trFallback('What will be removed'),
+                    'delete_account_removed_title'.trFallback('What will be removed after 7 days'),
                     style: iroDisplay(size: 15),
                   ),
                   const SizedBox(height: 12),
@@ -206,13 +207,59 @@ class _WarningCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'delete_account_warning_title'.trFallback('This cannot be undone'),
+                  'delete_account_warning_title'.trFallback('Your account will be deleted'),
                   style: iroDisplay(size: 16, color: AppColors.bad),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'delete_account_warning_body'.trFallback(
-                    'Once deleted, your account will no longer exist and all its data will be permanently removed.',
+                    'Your account will be closed right away, and after 7 days it will no longer exist. '
+                    'All its data will then be permanently removed.',
+                  ),
+                  style: const TextStyle(fontSize: 13.5, height: 1.45, color: AppColors.ink2),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The way back: a self-deleted account is restored by signing in again
+/// before the server's grace period runs out.
+class _RestoreCard extends StatelessWidget {
+  const _RestoreCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return IroCard(
+      color: Iro.skyWash,
+      border: Iro.sky.withValues(alpha: 0.25),
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(color: Iro.sky.withValues(alpha: 0.12), shape: BoxShape.circle),
+            child: const Icon(Icons.restore_rounded, color: Iro.sky, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'delete_account_restore_title'.trFallback('Changed your mind?'),
+                  style: iroDisplay(size: 16, color: Iro.sky),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'delete_account_restore_body'.trFallback(
+                    'Sign in again with the same mobile number within 7 days and your account and all your data will be restored.',
                   ),
                   style: const TextStyle(fontSize: 13.5, height: 1.45, color: AppColors.ink2),
                 ),
